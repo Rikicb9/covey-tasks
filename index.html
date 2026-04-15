@@ -652,33 +652,47 @@ function toSaveObj(){
   return {al:S.al,filter:S.filter,showDone:S.showDone,view:S.view,lists:S.lists,nid:S.nid};
 }
 function saveLocal(){
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(toSaveObj()));}catch(e){}
+  try{
+    const payload=toSaveObj();
+    payload._localTs=new Date().toISOString(); // timestamp of last local write
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
+  }catch(e){}
 }
 async function loadFromCloud(){
   try{
-    const res=await fetch(`${SB_URL}/rest/v1/covey_state?id=eq.default&select=data`,{headers:SB_HEADERS});
+    const res=await fetch(`${SB_URL}/rest/v1/covey_state?id=eq.default&select=data,updated_at`,{headers:SB_HEADERS});
     if(!res.ok)return null;
     const rows=await res.json();
-    if(rows.length&&rows[0].data)return rows[0].data;
+    if(rows.length&&rows[0].data)return rows[0]; // {data, updated_at}
   }catch(e){}
   return null;
 }
 async function saveToCloud(data){
+  const ts=new Date().toISOString();
   try{
     await fetch(`${SB_URL}/rest/v1/covey_state`,{
       method:'POST',
       headers:{...SB_HEADERS,'Prefer':'resolution=merge-duplicates'},
-      body:JSON.stringify({id:'default',data,updated_at:new Date().toISOString()})
+      body:JSON.stringify({id:'default',data,updated_at:ts})
     });
+    lastCloudTs=ts;
   }catch(e){}
 }
 
 // Debounced cloud save
 let saveTimer=null;
+let lastCloudTs=null;
+let isSyncing=false;
+
 function save(){
-  saveLocal();  // instant local cache
+  saveLocal();
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>saveToCloud(toSaveObj()),800);
+  saveTimer=setTimeout(async()=>{
+    setSyncStatus('syncing');
+    await saveToCloud(toSaveObj());
+    saveTimer=null;
+    setSyncStatus('ok');
+  },300);
 }
 
 // Init: load from local immediately, then sync from cloud
@@ -695,35 +709,79 @@ const now=()=>new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-di
 
 // ── SYNC INDICATOR ──
 function setSyncStatus(status){
-  // status: 'syncing' | 'ok' | 'offline'
   const dot=document.getElementById('sync-dot');
   if(!dot)return;
-  dot.title=status==='ok'?'Sincronizado':status==='syncing'?'Sincronizando...':'Sin conexión';
+  dot.title=status==='ok'?'Sincronizado ✓':status==='syncing'?'Sincronizando...':'Sin conexión';
   dot.style.background=status==='ok'?'#10B981':status==='syncing'?'#F59E0B':'#94A3B8';
 }
 
-// Cloud sync on load — merge remote state if newer
-(async()=>{
+// ── APPLY REMOTE STATE ──
+function applyRemote(data){
+  S=stateFromRaw(data);
+  saveLocal();
+  render();rMatrix();
+  const inMatrix=S.view==='matrix';
+  document.getElementById('view-list').style.display=inMatrix?'none':'flex';
+  document.getElementById('view-matrix').classList.toggle('show',inMatrix);
+  document.getElementById('tab-list').classList.toggle('active',!inMatrix);
+  document.getElementById('tab-matrix').classList.toggle('active',inMatrix);
+}
+
+// ── PULL FROM CLOUD ──
+async function pullFromCloud(){
+  if(isSyncing||saveTimer)return; // don't pull while a local save is pending
+  isSyncing=true;
   setSyncStatus('syncing');
-  const remote=await loadFromCloud();
-  if(remote){
-    // Merge: use remote if it has more tasks or higher nid (more recent)
-    const remoteNid=remote.nid||0;
-    const localNid=S.nid||0;
-    if(remoteNid>=localNid){
-      S=stateFromRaw(remote);
-      saveLocal();
-      render();rMatrix();
-      if(S.view==='matrix'){
-        document.getElementById('view-list').style.display='none';
-        document.getElementById('view-matrix').classList.add('show');
-        document.getElementById('tab-list').classList.remove('active');
-        document.getElementById('tab-matrix').classList.add('active');
+  try{
+    const row=await loadFromCloud();
+    if(row){
+      const cloudTs=row.updated_at;
+      // Only apply if cloud has genuinely new data we haven't seen
+      if(!lastCloudTs||new Date(cloudTs)>new Date(lastCloudTs)){
+        // Also check we're not overwriting newer local data
+        let localTs=null;
+        try{const raw=localStorage.getItem(STORAGE_KEY);if(raw)localTs=JSON.parse(raw)._localTs;}catch(e){}
+        if(!localTs||new Date(cloudTs)>new Date(localTs)){
+          lastCloudTs=cloudTs;
+          applyRemote(row.data);
+        }else{
+          lastCloudTs=cloudTs; // update reference but keep local
+        }
       }
     }
+    setSyncStatus('ok');
+  }catch(e){setSyncStatus('offline');}
+  isSyncing=false;
+}
+
+// ── INITIAL LOAD ──
+// Only apply cloud state if it's newer than the last local write.
+// This prevents overwriting tasks created locally that haven't synced yet.
+(async()=>{
+  setSyncStatus('syncing');
+  const row=await loadFromCloud();
+  if(row){
+    lastCloudTs=row.updated_at;
+    // Compare cloud timestamp with our last local write timestamp
+    let localTs=null;
+    try{
+      const raw=localStorage.getItem(STORAGE_KEY);
+      if(raw){const parsed=JSON.parse(raw);localTs=parsed._localTs||null;}
+    }catch(e){}
+    // Apply cloud only if cloud is strictly newer than local
+    const cloudNewer=!localTs||new Date(row.updated_at)>new Date(localTs);
+    if(cloudNewer)applyRemote(row.data);
   }
   setSyncStatus('ok');
 })();
+
+// Poll every 25 seconds
+setInterval(pullFromCloud,25000);
+
+// Sync when tab/app becomes visible again
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')pullFromCloud();
+});
 
 // resize
 const hdl=document.getElementById('resize-handle'),cp=document.getElementById('chat-panel');
