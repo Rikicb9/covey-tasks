@@ -461,7 +461,10 @@ button{touch-action:manipulation;cursor:pointer;}
 <div id="root">
   <div id="chat-panel">
     <div id="chat-header">
-      <div id="chat-header-title">✦ Asistente Covey</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div id="chat-header-title">✦ Covey Tasks</div>
+        <div id="sync-dot" title="Sincronizando..." style="width:7px;height:7px;border-radius:50%;background:#F59E0B;flex-shrink:0;transition:background .5s;"></div>
+      </div>
       <div id="chat-header-sub">Gestiona tareas con lenguaje natural</div>
     </div>
     <div id="chat-messages">
@@ -580,7 +583,12 @@ button{touch-action:manipulation;cursor:pointer;}
 
 <script>
 (function(){
+// ── SUPABASE CONFIG ──
+const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyb3Ntd3ZtYWx5b2dpcHR1eXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjczNDcsImV4cCI6MjA5MTgwMzM0N30.ZbEwcJ-aDJZWLGF4ql9XeTKebpPYTzlrLK8lbkDpoAU';
+const SB_HEADERS={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
 const STORAGE_KEY='covey-tasks-v1';
+
 const QS=[
   {
     text:'¿Tiene una fecha límite real?',
@@ -626,29 +634,56 @@ const QS=[
 const QMAP={q1:'Q1',q2:'Q2',q3:'Q3',q4:'Q4'};
 const DEFAULT_STATE={al:0,filter:'all',showDone:false,view:'list',lists:[{id:0,name:'Mi día',icon:'☀️',tasks:[]},{id:1,name:'Importante',icon:'⭐',tasks:[]},{id:2,name:'Planeado',icon:'📅',tasks:[]},{id:3,name:'Tareas',icon:'✔️',tasks:[]}],nid:1};
 
-// ── PERSISTENCE ──
-function loadState(){
+// ── PERSISTENCE: localStorage (cache) + Supabase (cloud) ──
+function stateFromRaw(saved){
+  saved.exp=new Set();
+  saved.qf={ans:[null,null,null,null],cur:0,pt:null};
+  return saved;
+}
+function loadFromLocal(){
   try{
     const raw=localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      const saved=JSON.parse(raw);
-      saved.exp=new Set();
-      saved.qf={ans:[null,null,null,null],cur:0,pt:null};
-      return saved;
-    }
+    if(raw)return stateFromRaw(JSON.parse(raw));
   }catch(e){}
   const s=JSON.parse(JSON.stringify(DEFAULT_STATE));
-  s.exp=new Set();s.qf={ans:[null,null,null,null],cur:0,pt:null};
-  return s;
+  return stateFromRaw(s);
 }
-function saveState(){
+function toSaveObj(){
+  return {al:S.al,filter:S.filter,showDone:S.showDone,view:S.view,lists:S.lists,nid:S.nid};
+}
+function saveLocal(){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(toSaveObj()));}catch(e){}
+}
+async function loadFromCloud(){
   try{
-    const toSave={al:S.al,filter:S.filter,showDone:S.showDone,view:S.view,lists:S.lists,nid:S.nid};
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(toSave));
+    const res=await fetch(`${SB_URL}/rest/v1/covey_state?id=eq.default&select=data`,{headers:SB_HEADERS});
+    if(!res.ok)return null;
+    const rows=await res.json();
+    if(rows.length&&rows[0].data)return rows[0].data;
+  }catch(e){}
+  return null;
+}
+async function saveToCloud(data){
+  try{
+    await fetch(`${SB_URL}/rest/v1/covey_state`,{
+      method:'POST',
+      headers:{...SB_HEADERS,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({id:'default',data,updated_at:new Date().toISOString()})
+    });
   }catch(e){}
 }
 
-let S=loadState();
+// Debounced cloud save
+let saveTimer=null;
+function save(){
+  saveLocal();  // instant local cache
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>saveToCloud(toSaveObj()),800);
+}
+
+// Init: load from local immediately, then sync from cloud
+let S=loadFromLocal();
+
 const gl=()=>S.lists[S.al];
 const ft=()=>{let t=gl().tasks;if(S.filter==='pending')t=t.filter(x=>!x.done);if(S.filter==='starred')t=t.filter(x=>x.star);if(['q1','q2','q3','q4'].includes(S.filter))t=t.filter(x=>x.q===S.filter);return t;};
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -657,7 +692,38 @@ const allTasks=()=>S.lists.flatMap(l=>l.tasks);
 const findAnyTask=id=>allTasks().find(t=>t.id===id);
 const cq=ans=>{let u=0,i=0;ans.forEach((ai,qi)=>{if(ai===null)return;const o=QS[qi].opts[ai];u+=o.u;i+=o.i;});return u>=2&&i>=2?'q1':u<2&&i>=2?'q2':u>=2&&i<2?'q3':'q4';};
 const now=()=>new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-const save=()=>saveState();
+
+// ── SYNC INDICATOR ──
+function setSyncStatus(status){
+  // status: 'syncing' | 'ok' | 'offline'
+  const dot=document.getElementById('sync-dot');
+  if(!dot)return;
+  dot.title=status==='ok'?'Sincronizado':status==='syncing'?'Sincronizando...':'Sin conexión';
+  dot.style.background=status==='ok'?'#10B981':status==='syncing'?'#F59E0B':'#94A3B8';
+}
+
+// Cloud sync on load — merge remote state if newer
+(async()=>{
+  setSyncStatus('syncing');
+  const remote=await loadFromCloud();
+  if(remote){
+    // Merge: use remote if it has more tasks or higher nid (more recent)
+    const remoteNid=remote.nid||0;
+    const localNid=S.nid||0;
+    if(remoteNid>=localNid){
+      S=stateFromRaw(remote);
+      saveLocal();
+      render();rMatrix();
+      if(S.view==='matrix'){
+        document.getElementById('view-list').style.display='none';
+        document.getElementById('view-matrix').classList.add('show');
+        document.getElementById('tab-list').classList.remove('active');
+        document.getElementById('tab-matrix').classList.add('active');
+      }
+    }
+  }
+  setSyncStatus('ok');
+})();
 
 // resize
 const hdl=document.getElementById('resize-handle'),cp=document.getElementById('chat-panel');
