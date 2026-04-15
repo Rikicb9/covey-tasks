@@ -213,49 +213,131 @@ button{touch-action:manipulation;cursor:pointer;}
 /* MATRIX */
 #view-matrix{display:none;flex:1;flex-direction:column;overflow:hidden;}
 #view-matrix.show{display:flex;}
-.mx-hdr{padding:10px 14px 6px;background:#fff;border-bottom:1px solid var(--s200);flex-shrink:0;}
+.mx-hdr{padding:12px 16px 8px;background:#fff;border-bottom:1px solid var(--s200);flex-shrink:0;}
 .mx-title{font-size:var(--text-lg);font-weight:700;color:#000;}
-.mx-outer{flex:1;display:flex;overflow:hidden;padding:6px 8px 8px 4px;}
-.mx-axis-v{width:20px;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between;padding:28px 0 0;}
-.mx-axis-v span{font-size:clamp(0.5rem,1.5vw,0.5625rem);color:#64748B;font-weight:500;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;letter-spacing:.04em;}
-.mx-right{flex:1;display:flex;flex-direction:column;min-width:0;}
-.mx-axis-h{display:flex;justify-content:space-between;padding:0 4px;margin-bottom:4px;flex-shrink:0;}
-.mx-axis-h span{font-size:clamp(0.5rem,1.5vw,0.5625rem);color:#64748B;font-weight:500;letter-spacing:.04em;}
-.mx-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:5px;min-height:0;}
-.mx-quad{border-radius:9px;border:1.5px solid;padding:7px 8px;display:flex;flex-direction:column;overflow:hidden;min-height:0;transition:outline .12s;}
-.mx-quad.drag-over{outline:2px dashed var(--a500);outline-offset:-2px;}
+
+/* ── MATRIX LAYOUT ── */
+.mx-outer{
+  flex:1;display:flex;overflow:hidden;
+  padding:10px 12px 12px 6px;
+  gap:6px;
+}
+/* Vertical axis label */
+.mx-axis-v{
+  width:22px;flex-shrink:0;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:38px 0 6px;
+}
+.mx-axis-v span{
+  font-size:var(--text-xs);
+  color:var(--s500);font-weight:600;
+  writing-mode:vertical-rl;
+  transform:rotate(180deg);
+  white-space:nowrap;letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.mx-right{flex:1;display:flex;flex-direction:column;min-width:0;gap:6px;}
+
+/* Horizontal axis labels */
+.mx-axis-h{
+  display:flex;justify-content:space-between;
+  padding:0 6px;flex-shrink:0;
+}
+.mx-axis-h span{
+  font-size:var(--text-xs);
+  color:var(--s500);font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+
+/* Grid: more gap between quadrants */
+.mx-grid{
+  flex:1;display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+  gap:10px;min-height:0;
+}
+
+/* Quadrant cards */
+.mx-quad{
+  border-radius:12px;border:2px solid;
+  padding:12px 12px 10px;
+  display:flex;flex-direction:column;
+  overflow:hidden;min-height:0;
+  transition:outline .12s,box-shadow .15s;
+}
+.mx-quad:hover{box-shadow:0 2px 12px rgba(15,23,42,.08);}
+.mx-quad.drag-over{outline:2px dashed var(--a500);outline-offset:-3px;}
 .mx-quad.q1{background:#FFF5F5;border-color:#FECACA;}
 .mx-quad.q2{background:#F0FDF4;border-color:#BBF7D0;}
 .mx-quad.q3{background:#FFFBEB;border-color:#FDE68A;}
 .mx-quad.q4{background:#F8FAFC;border-color:#E2E8F0;}
-.qhd{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;flex-shrink:0;}
-.qhd-tag{font-size:var(--text-sm);font-weight:700;font-family:var(--mono);}
-.qhd-action{font-size:var(--text-xs);font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap;}
-.mx-quad.q1 .qhd-tag{color:#B91C1C;}.mx-quad.q1 .qhd-action{background:#FEE2E2;color:#B91C1C;}
-.mx-quad.q2 .qhd-tag{color:#065F46;}.mx-quad.q2 .qhd-action{background:#D1FAE5;color:#065F46;}
-.mx-quad.q3 .qhd-tag{color:#92400E;}.mx-quad.q3 .qhd-action{background:#FDE68A;color:#92400E;}
-.mx-quad.q4 .qhd-tag{color:#334155;}.mx-quad.q4 .qhd-action{background:#E2E8F0;color:#334155;}
-.qhd-name{font-size:clamp(0.5625rem,1.6vw,0.5625rem);font-weight:500;opacity:.65;margin-bottom:4px;flex-shrink:0;}
+
+/* Quadrant header: Q1 + Hazlo inline */
+.qhd{
+  display:flex;align-items:baseline;gap:7px;
+  margin-bottom:3px;flex-shrink:0;
+}
+.qhd-tag{
+  font-size:var(--text-md);
+  font-weight:800;font-family:var(--mono);
+  line-height:1;
+}
+.qhd-action{
+  font-size:var(--text-sm);
+  font-weight:700;
+  white-space:nowrap;
+}
+.mx-quad.q1 .qhd-tag{color:#B91C1C;}
+.mx-quad.q1 .qhd-action{color:#DC2626;}
+.mx-quad.q2 .qhd-tag{color:#065F46;}
+.mx-quad.q2 .qhd-action{color:#059669;}
+.mx-quad.q3 .qhd-tag{color:#92400E;}
+.mx-quad.q3 .qhd-action{color:#D97706;}
+.mx-quad.q4 .qhd-tag{color:#334155;}
+.mx-quad.q4 .qhd-action{color:#475569;}
+
+/* Subtitle: "Urgente · Importante" */
+.qhd-name{
+  font-size:var(--text-xs);
+  font-weight:500;
+  margin-bottom:8px;flex-shrink:0;
+  opacity:.75;
+}
 .mx-quad.q1 .qhd-name{color:#B91C1C;}
 .mx-quad.q2 .qhd-name{color:#065F46;}
 .mx-quad.q3 .qhd-name{color:#92400E;}
 .mx-quad.q4 .qhd-name{color:#334155;}
-.qhd-div{height:1px;margin-bottom:4px;flex-shrink:0;}
-.mx-quad.q1 .qhd-div{background:#FCA5A5;}
-.mx-quad.q2 .qhd-div{background:#86EFAC;}
-.mx-quad.q3 .qhd-div{background:#FCD34D;}
-.mx-quad.q4 .qhd-div{background:#CBD5E1;}
-.mx-tasks{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:2px;}
+
+/* Divider */
+.qhd-div{height:1px;margin-bottom:8px;flex-shrink:0;}
+.mx-quad.q1 .qhd-div{background:#FECACA;}
+.mx-quad.q2 .qhd-div{background:#BBF7D0;}
+.mx-quad.q3 .qhd-div{background:#FDE68A;}
+.mx-quad.q4 .qhd-div{background:#E2E8F0;}
+
+/* Task list inside quadrant */
+.mx-tasks{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:3px;}
 .mx-tasks::-webkit-scrollbar{width:2px;}
-.mx-task-item{display:flex;align-items:center;gap:3px;padding:3px 4px 3px 5px;border-radius:4px;font-size:var(--text-sm);line-height:1.2;font-weight:500;cursor:pointer;user-select:none;overflow:hidden;transition:filter .15s;min-height:28px;touch-action:manipulation;}
-.mx-task-item:hover{filter:brightness(.96);}
-.mx-task-item:active{filter:brightness(.92);}
+
+/* Task chip */
+.mx-task-item{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 8px 5px 7px;
+  border-radius:7px;
+  font-size:var(--text-sm);line-height:1.3;font-weight:500;
+  cursor:pointer;user-select:none;overflow:hidden;
+  transition:filter .15s;min-height:32px;
+  touch-action:manipulation;
+}
+.mx-task-item:hover{filter:brightness(.94);}
+.mx-task-item:active{filter:brightness(.90);}
 .mx-task-item.dragging{opacity:.35;}
-.mx-quad.q1 .mx-task-item{background:rgba(220,38,38,.07);color:#B91C1C;}
-.mx-quad.q2 .mx-task-item{background:rgba(5,150,105,.07);color:#065F46;}
-.mx-quad.q3 .mx-task-item{background:rgba(217,119,6,.07);color:#92400E;}
-.mx-quad.q4 .mx-task-item{background:rgba(71,85,105,.06);color:#334155;}
-.mx-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.mx-quad.q1 .mx-task-item{background:rgba(220,38,38,.09);color:#991B1B;}
+.mx-quad.q2 .mx-task-item{background:rgba(5,150,105,.09);color:#065F46;}
+.mx-quad.q3 .mx-task-item{background:rgba(217,119,6,.09);color:#92400E;}
+.mx-quad.q4 .mx-task-item{background:rgba(71,85,105,.08);color:#334155;}
+.mx-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .mx-quad.q1 .mx-dot{background:#EF4444;}
 .mx-quad.q2 .mx-dot{background:#10B981;}
 .mx-quad.q3 .mx-dot{background:#F59E0B;}
@@ -501,8 +583,11 @@ button{touch-action:manipulation;cursor:pointer;}
   /* Bottom safe area padding on tasks container */
   #tasks-container{padding-bottom:max(80px, calc(60px + env(safe-area-inset-bottom)));}
 
-  /* Matrix task items bigger on mobile */
-  .mx-task-item{min-height:36px;padding:4px 6px 4px 6px;font-size:var(--text-sm);}
+  /* Matrix: tighter on mobile */
+  .mx-grid{gap:7px;}
+  .mx-quad{padding:9px 10px 8px;}
+  .mx-task-item{min-height:36px;padding:5px 7px;font-size:var(--text-sm);}
+  .mx-outer{padding:8px 8px 10px 4px;}
 }
 
 /* Hide FAB on desktop */
@@ -592,10 +677,10 @@ button{touch-action:manipulation;cursor:pointer;}
           <div class="mx-right">
             <div class="mx-axis-h"><span>Urgente</span><span>No urgente</span></div>
             <div class="mx-grid">
-              <div class="mx-quad q1" data-q="q1"><div class="qhd"><span class="qhd-tag">Q1</span><span class="qhd-action">Hazlo</span></div><div class="qhd-name">Urgente · Importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q1"></div></div>
-              <div class="mx-quad q2" data-q="q2"><div class="qhd"><span class="qhd-tag">Q2</span><span class="qhd-action">Planifícalo</span></div><div class="qhd-name">No urgente · Importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q2"></div></div>
-              <div class="mx-quad q3" data-q="q3"><div class="qhd"><span class="qhd-tag">Q3</span><span class="qhd-action">Delégalo</span></div><div class="qhd-name">Urgente · No importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q3"></div></div>
-              <div class="mx-quad q4" data-q="q4"><div class="qhd"><span class="qhd-tag">Q4</span><span class="qhd-action">Posponlo</span></div><div class="qhd-name">No urgente · No importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q4"></div></div>
+              <div class="mx-quad q1" data-q="q1"><div class="qhd"><span class="qhd-tag">Q1</span><span class="qhd-action">— Hazlo</span></div><div class="qhd-name">Urgente · Importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q1"></div></div>
+              <div class="mx-quad q2" data-q="q2"><div class="qhd"><span class="qhd-tag">Q2</span><span class="qhd-action">— Planifícalo</span></div><div class="qhd-name">No urgente · Importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q2"></div></div>
+              <div class="mx-quad q3" data-q="q3"><div class="qhd"><span class="qhd-tag">Q3</span><span class="qhd-action">— Delégalo</span></div><div class="qhd-name">Urgente · No importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q3"></div></div>
+              <div class="mx-quad q4" data-q="q4"><div class="qhd"><span class="qhd-tag">Q4</span><span class="qhd-action">— Posponlo</span></div><div class="qhd-name">No urgente · No importante</div><div class="qhd-div"></div><div class="mx-tasks" id="mx-q4"></div></div>
             </div>
           </div>
         </div>
