@@ -134,12 +134,9 @@ button{touch-action:manipulation;cursor:pointer;}
 .q-opt:hover{border-color:var(--a500) !important;background:var(--a100) !important;color:var(--a700) !important;}
 .q-opt:active{background:var(--a100) !important;color:var(--a700) !important;}
 .q-opt.selected{border-color:var(--a500) !important;border-width:2px !important;background:var(--a100) !important;color:var(--a700) !important;font-weight:700 !important;}
-.q-nav{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+.q-nav{display:flex;justify-content:flex-start;align-items:center;margin-top:10px;}
 .q-skip{background:none;border:none;cursor:pointer;font-family:var(--fn);font-size:var(--text-sm);font-weight:500;color:#888;text-decoration:underline;text-underline-offset:2px;min-height:var(--touch-min);display:flex;align-items:center;touch-action:manipulation;}
 .q-skip:hover{color:#444;}
-.q-next{background:none;border:none;cursor:pointer;font-family:var(--fn);font-size:var(--text-sm);font-weight:500;color:#888;opacity:.35;pointer-events:none;padding:0;min-height:var(--touch-min);display:flex;align-items:center;touch-action:manipulation;}
-.q-next.enabled{opacity:1;pointer-events:auto;color:var(--a500);font-weight:600;}
-.q-next.enabled:hover{color:var(--a700);}
 #tasks-container{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 14px 14px;}
 #tasks-container::-webkit-scrollbar{width:3px;}
 #tasks-container::-webkit-scrollbar-thumb{background:var(--s200);border-radius:2px;}
@@ -177,8 +174,9 @@ button{touch-action:manipulation;cursor:pointer;}
 .sub-chk.done::before{background:var(--a500);border-color:var(--a500);}
 .sub-chk.done::after{content:'';width:6px;height:4px;border-left:1.5px solid #fff;border-bottom:1.5px solid #fff;transform:rotate(-45deg) translate(1px,-1px);position:absolute;}
 .sub-chk{position:relative;}
-.sub-txt{flex:1;font-size:var(--text-sm);color:#333;}
+.sub-txt{flex:1;font-size:var(--text-sm);color:#333;cursor:text;}
 .sub-txt.done{text-decoration:line-through;color:#888;}
+.sub-edit-in{flex:1;border:none;border-bottom:1.5px solid var(--a400);background:transparent;font-size:var(--text-sm);color:#111 !important;outline:none;font-family:var(--fn);padding:1px 2px;}
 .del-sub{background:none;border:none;cursor:pointer;color:var(--s400);font-size:11px;opacity:0;padding:0;width:28px;height:32px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;}
 .sub-item:hover .del-sub{opacity:1;}
 .del-sub:hover{color:var(--red);}
@@ -517,7 +515,7 @@ button{touch-action:manipulation;cursor:pointer;}
           <div class="q-question" id="q-text"></div>
           <div class="q-hint" id="q-hint"></div>
           <div class="q-options" id="q-opts"></div>
-          <div class="q-nav"><button class="q-skip" id="q-skip">Omitir clasificación</button><button class="q-next" id="q-next">Siguiente →</button></div>
+          <div class="q-nav"><button class="q-skip" id="q-skip">Omitir clasificación</button></div>
         </div>
         <div id="tasks-container">
           <div id="active-tasks"></div>
@@ -583,7 +581,48 @@ button{touch-action:manipulation;cursor:pointer;}
 <script>
 (function(){
 const STORAGE_KEY='covey-tasks-v1';
-const QS=[{text:'¿Cuándo vence esta tarea?',hint:'Urgencia = presión temporal.',opts:[{l:'Hoy o mañana — no puede esperar',u:3,i:0},{l:'Esta semana, con algo de margen',u:1,i:0},{l:'Este mes o sin fecha clara',u:0,i:0},{l:'Sin fecha — cuando sea',u:-1,i:0}]},{text:'¿Cuánto contribuye a tus metas clave?',hint:'Importante = alineado con tu misión y objetivos reales.',opts:[{l:'Central para mis objetivos principales',u:0,i:3},{l:'Relacionada, pero no es central',u:0,i:1},{l:'Algo de valor, no mueve la aguja',u:0,i:-1},{l:'Sin relación con mis metas',u:0,i:-2}]},{text:'¿Qué pasa si no la haces esta semana?',hint:'La consecuencia real es el mejor indicador.',opts:[{l:'Crisis o consecuencias graves',u:2,i:2},{l:'Retraso significativo',u:1,i:1},{l:'Impacto menor, recuperable',u:0,i:0},{l:'Nada — nadie lo notaría',u:-1,i:-1}]},{text:'¿De dónde viene esta tarea?',hint:'Las tareas proactivas (Q2) crean el mayor valor.',opts:[{l:'Yo la genero: planificación o crecimiento',u:-1,i:2},{l:'Del equipo — parte de mi rol',u:0,i:1},{l:'Petición externa, urgente para otros',u:1,i:-1},{l:'Distracción o hábito sin valor',u:0,i:-2}]}];
+const QS=[
+  {
+    text:'¿Tiene una fecha límite real?',
+    hint:'Urgente = consecuencias concretas si no lo haces hoy o esta semana.',
+    opts:[
+      {l:'Sí — hoy mismo, hay consecuencias inmediatas',u:3,i:0},
+      {l:'Esta semana, aunque tengo algo de margen',u:1,i:0},
+      {l:'Pronto, pero sin fecha concreta',u:0,i:0},
+      {l:'No — puedo hacerlo cuando quiera',u:-1,i:0}
+    ]
+  },
+  {
+    text:'¿Cuánto acerca esta tarea a quien quieres ser?',
+    hint:'Importante = alineado con tus metas, valores o bienestar a largo plazo.',
+    opts:[
+      {l:'Es central para mis metas, salud o crecimiento personal',u:0,i:3},
+      {l:'Contribuye, aunque no es mi prioridad máxima',u:0,i:1},
+      {l:'Tiene algo de valor, pero no mueve la aguja',u:0,i:-1},
+      {l:'No tiene relación con lo que quiero conseguir',u:0,i:-2}
+    ]
+  },
+  {
+    text:'¿Qué pasa realmente si no la haces?',
+    hint:'La consecuencia real es el mejor indicador de prioridad. Sé honesto.',
+    opts:[
+      {l:'Afecta a mi salud, relaciones, finanzas o compromisos clave',u:2,i:2},
+      {l:'Genera estrés o retrasa algo que me importa',u:1,i:1},
+      {l:'El impacto sería leve y recuperable fácilmente',u:0,i:0},
+      {l:'Prácticamente nada — nadie lo notaría, ni yo',u:-1,i:-1}
+    ]
+  },
+  {
+    text:'¿Por qué vas a hacerla?',
+    hint:'Las tareas que eliges tú (Q2) tienen el mayor retorno en tu vida. (GTD / Covey)',
+    opts:[
+      {l:'La elijo yo: es un proyecto, hábito o meta propia',u:-1,i:2},
+      {l:'Es necesaria para mantener mi vida o rutina',u:0,i:1},
+      {l:'Alguien me la pidió y decidí aceptarla',u:1,i:-1},
+      {l:'La haré para evitar culpa, no porque realmente aporte',u:0,i:-2}
+    ]
+  }
+];
 const QMAP={q1:'Q1',q2:'Q2',q3:'Q3',q4:'Q4'};
 const DEFAULT_STATE={al:0,filter:'all',showDone:false,view:'list',lists:[{id:0,name:'Mi día',icon:'☀️',tasks:[]},{id:1,name:'Importante',icon:'⭐',tasks:[]},{id:2,name:'Planeado',icon:'📅',tasks:[]},{id:3,name:'Tareas',icon:'✔️',tasks:[]}],nid:1};
 
@@ -669,9 +708,30 @@ function closeTaskDetail(){document.getElementById('task-detail-overlay').classL
 
 function rSidebar(){const nav=document.getElementById('list-nav');nav.innerHTML='';S.lists.forEach((l,i)=>{const p=l.tasks.filter(t=>!t.done).length;const el=document.createElement('div');el.className='list-item'+(i===S.al?' active':'');el.innerHTML=`<span>${l.icon}</span><span style="flex:1">${l.name}</span><span class="li-cnt${p?' show':''}">${p||''}</span>`;el.onclick=()=>{S.al=i;S.filter='all';document.querySelectorAll('.filter-chip').forEach(b=>b.classList.toggle('active',b.dataset.filter==='all'));save();render();};nav.appendChild(el);});}
 function rList(){const list=gl();document.getElementById('list-title').textContent=list.name;const all=ft(),active=all.filter(t=>!t.done),done=all.filter(t=>t.done);const ac=document.getElementById('active-tasks');ac.innerHTML='';active.forEach(t=>ac.appendChild(mkTask(t)));const cs=document.getElementById('comp-section'),ct=document.getElementById('comp-tasks');ct.innerHTML='';if(done.length){cs.style.display='block';document.getElementById('comp-cnt').textContent=`(${done.length})`;if(S.showDone){ct.classList.remove('hidden');document.getElementById('comp-arr').classList.add('open');done.forEach(t=>ct.appendChild(mkTask(t)));}else{ct.classList.add('hidden');document.getElementById('comp-arr').classList.remove('open');}}else cs.style.display='none';if(!active.length&&!done.length)ac.innerHTML='<div id="empty"><div class="ei">📋</div><div>Sin tareas. Añade una nueva.</div></div>';}
-function mkTask(t){const div=document.createElement('div');div.className='task-row fi';const hs=t.subs&&t.subs.length>0,ds=hs?t.subs.filter(s=>s.done).length:0,ie=S.exp.has(t.id);const qb=t.q?`<span class="q-badge ${t.q}">${QMAP[t.q]}</span>`:'';div.innerHTML=`<div class="task-main"><div class="check-wrap" data-a="tog" data-id="${t.id}"><div class="check-circle${t.done?' done':''}"></div></div><div class="task-text-wrap"><span class="task-text${t.done?' done':''}" data-a="txt" data-id="${t.id}">${esc(t.text)}</span></div><div class="task-meta">${qb}${hs?`<span class="sub-pill">${ds}/${t.subs.length}</span>`:''}<button class="star-btn${t.star?' on':''}" data-a="star" data-id="${t.id}">${t.star?'★':'☆'}</button><button class="del-btn" data-a="del" data-id="${t.id}">✕</button></div></div><div class="sub-panel${ie?' open':''}">${(t.subs||[]).map(s=>`<div class="sub-item"><div class="sub-chk${s.done?' done':''}" data-a="tsub" data-tid="${t.id}" data-sid="${s.id}"></div><span class="sub-txt${s.done?' done':''}">${esc(s.text)}</span><button class="del-sub" data-a="dsub" data-tid="${t.id}" data-sid="${s.id}">✕</button></div>`).join('')}<div class="add-sub-row"><span style="color:#aaa;font-size:13px;">+</span><input class="add-sub-in" placeholder="Añadir subtarea..." data-tid="${t.id}" maxlength="80"/></div></div>`;
+function mkTask(t){const div=document.createElement('div');div.className='task-row fi';const hs=t.subs&&t.subs.length>0,ds=hs?t.subs.filter(s=>s.done).length:0,ie=S.exp.has(t.id);const qb=t.q?`<span class="q-badge ${t.q}">${QMAP[t.q]}</span>`:'';div.innerHTML=`<div class="task-main"><div class="check-wrap" data-a="tog" data-id="${t.id}"><div class="check-circle${t.done?' done':''}"></div></div><div class="task-text-wrap"><span class="task-text${t.done?' done':''}" data-a="txt" data-id="${t.id}">${esc(t.text)}</span></div><div class="task-meta">${qb}${hs?`<span class="sub-pill">${ds}/${t.subs.length}</span>`:''}<button class="star-btn${t.star?' on':''}" data-a="star" data-id="${t.id}">${t.star?'★':'☆'}</button><button class="del-btn" data-a="del" data-id="${t.id}">✕</button></div></div><div class="sub-panel${ie?' open':''}">${(t.subs||[]).map(s=>`<div class="sub-item"><div class="sub-chk${s.done?' done':''}" data-a="tsub" data-tid="${t.id}" data-sid="${s.id}"></div><span class="sub-txt${s.done?' done':''}" data-sid="${s.id}" data-tid="${t.id}">${esc(s.text)}</span><button class="del-sub" data-a="dsub" data-tid="${t.id}" data-sid="${s.id}">✕</button></div>`).join('')}<div class="add-sub-row"><span style="color:#aaa;font-size:13px;">+</span><input class="add-sub-in" placeholder="Añadir subtarea..." data-tid="${t.id}" maxlength="80"/></div></div>`;
 let ct2=null;div.querySelector('.task-main').addEventListener('click',e=>{if(e.target.closest('[data-a="tog"]')||e.target.closest('[data-a="star"]')||e.target.closest('[data-a="del"]'))return;if(ct2){clearTimeout(ct2);ct2=null;editTask(t.id,div.querySelector('[data-a="txt"]'));}else ct2=setTimeout(()=>{ct2=null;S.exp.has(t.id)?S.exp.delete(t.id):S.exp.add(t.id);render();},240);});
 div.addEventListener('click',hAct);
+// ★ click on sub-txt → inline edit
+div.addEventListener('click',e=>{
+  const span=e.target.closest('.sub-txt');
+  if(!span||span.tagName==='INPUT')return;
+  const sid=parseInt(span.dataset.sid),tid=parseInt(span.dataset.tid);
+  const tk=S.lists.flatMap(l=>l.tasks).find(x=>x.id===tid);
+  if(!tk)return;
+  const sub=tk.subs.find(s=>s.id===sid);
+  if(!sub||sub.done)return;
+  const inp=document.createElement('input');
+  inp.className='sub-edit-in';inp.value=sub.text;inp.maxLength=80;
+  span.parentNode.replaceChild(inp,span);
+  inp.focus();inp.select();
+  const save2=()=>{
+    const v=inp.value.trim();
+    if(v)sub.text=v;
+    save();render();rMatrix();
+  };
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key==='Escape')inp.blur();});
+  inp.addEventListener('blur',save2);
+});
 div.querySelector('.add-sub-in').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){const tk=ft2(t.id);if(tk){tk.subs.push({id:S.nid++,text:e.target.value.trim(),done:false});e.target.value='';save();render();rMatrix();}}});
 return div;}
 function editTask(id,el){const t=ft2(id);if(!t||!el)return;const inp=document.createElement('input');inp.className='task-edit-input';inp.value=t.text;inp.maxLength=120;el.parentNode.replaceChild(inp,el);inp.focus();inp.select();const sv=()=>{const v=inp.value.trim();if(v)t.text=v;save();render();rMatrix();};inp.addEventListener('keydown',e=>{if(e.key==='Enter')sv();if(e.key==='Escape')render();});inp.addEventListener('blur',sv);}
@@ -713,8 +773,34 @@ function rMatrix(){
   });
 }
 function startQ(text){S.qf={ans:[null,null,null,null],cur:0,pt:{text,id:S.nid++}};document.getElementById('q-tname-text').textContent=text.length>28?text.slice(0,28)+'…':text;document.getElementById('q-panel').classList.add('show');rQ();}
-function rQ(){const f=S.qf,q=QS[f.cur];document.getElementById('q-text').textContent=q.text;document.getElementById('q-hint').textContent=q.hint;const opts=document.getElementById('q-opts');opts.innerHTML='';q.opts.forEach((o,i)=>{const b=document.createElement('button');b.className='q-opt'+(f.ans[f.cur]===i?' selected':'');b.textContent=o.l;b.onclick=()=>{S.qf.ans[f.cur]=i;rQ();};opts.appendChild(b);});for(let i=0;i<4;i++)document.getElementById('qd'+i).className='q-dot'+(i<f.cur?' done':i===f.cur?' current':'');const nx=document.getElementById('q-next');nx.className='q-next'+(f.ans[f.cur]!==null?' enabled':'');nx.textContent=f.cur<3?'Siguiente →':'Clasificar ✓';}
-document.getElementById('q-next').addEventListener('click',()=>{const f=S.qf;if(f.ans[f.cur]===null)return;if(f.cur<3){S.qf.cur++;rQ();}else{gl().tasks.unshift({id:f.pt.id,text:f.pt.text,done:false,star:false,q:cq(f.ans),subs:[]});closeQ();save();render();rMatrix();}});
+function rQ(){
+  const f=S.qf,q=QS[f.cur];
+  document.getElementById('q-text').textContent=q.text;
+  document.getElementById('q-hint').textContent=q.hint;
+  const opts=document.getElementById('q-opts');opts.innerHTML='';
+  q.opts.forEach((o,i)=>{
+    const b=document.createElement('button');
+    b.className='q-opt'+(f.ans[f.cur]===i?' selected':'');
+    b.textContent=o.l;
+    b.onclick=()=>{
+      // mark selected visually
+      S.qf.ans[f.cur]=i;
+      rQ();
+      // auto-advance after brief visual feedback
+      setTimeout(()=>{
+        const f2=S.qf;
+        if(f2.ans[f2.cur]===null)return;
+        if(f2.cur<3){S.qf.cur++;rQ();}
+        else{
+          gl().tasks.unshift({id:f2.pt.id,text:f2.pt.text,done:false,star:false,q:cq(f2.ans),subs:[]});
+          closeQ();save();render();rMatrix();
+        }
+      },180);
+    };
+    opts.appendChild(b);
+  });
+  for(let i=0;i<4;i++)document.getElementById('qd'+i).className='q-dot'+(i<f.cur?' done':i===f.cur?' current':'');
+}
 document.getElementById('q-skip').addEventListener('click',()=>{const f=S.qf;if(!f.pt)return;gl().tasks.unshift({id:f.pt.id,text:f.pt.text,done:false,star:false,q:null,subs:[]});closeQ();save();render();rMatrix();});
 function closeQ(){document.getElementById('q-panel').classList.remove('show');S.qf={ans:[null,null,null,null],cur:0,pt:null};}
 document.getElementById('task-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){startQ(e.target.value.trim());e.target.value='';}});
