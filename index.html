@@ -8,7 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#E2E8F0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'DM Sans',system-ui,sans-serif;}
+html,body{height:100%;overflow:hidden;}
+body{background:#E2E8F0;display:flex;align-items:stretch;justify-content:stretch;height:100dvh;font-family:'DM Sans',system-ui,sans-serif;}
 :root{
   --s900:#1E293B;--s800:#334155;--s500:#64748B;--s400:#94A3B8;
   --s300:#CBD5E1;--s200:#E2E8F0;--s100:#F1F5F9;--s50:#F8FAFC;
@@ -18,7 +19,7 @@ body{background:#E2E8F0;display:flex;align-items:center;justify-content:center;m
   --emerald:#059669;--emeraldb:#D1FAE5;--slate:#475569;--slateb:#F1F5F9;
   --fn:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
 }
-#root{display:flex;height:640px;width:960px;max-width:98vw;font-family:var(--fn);font-size:13px;background:var(--s50);border:1px solid var(--s200);border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(15,23,42,.16);}
+#root{display:flex;height:100dvh;width:100vw;font-family:var(--fn);font-size:13px;background:var(--s50);border:none;border-radius:0;overflow:hidden;position:relative;}
 #chat-panel{width:272px;min-width:180px;max-width:55%;flex-shrink:0;display:flex;flex-direction:column;background:#fff;border-right:1px solid var(--s200);}
 #chat-header{padding:14px 16px 12px;background:var(--s900);flex-shrink:0;}
 #chat-header-title{font-size:13px;font-weight:600;color:#fff;}
@@ -283,6 +284,102 @@ body{background:#E2E8F0;display:flex;align-items:center;justify-content:center;m
 .confirm-cancel:hover{background:var(--s200);}
 .confirm-delete{background:#DC2626;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--fn);color:#fff;}
 .confirm-delete:hover{background:#B91C1C;}
+
+/* ── RESPONSIVE ── */
+
+/* Tablet: sidebar más estrecha, chat más estrecha */
+@media(max-width:900px){
+  #chat-panel{width:220px;min-width:160px;}
+  #sidebar{width:140px;}
+}
+
+/* Mobile: layout vertical, chat como drawer lateral */
+@media(max-width:640px){
+  #root{flex-direction:column;}
+
+  /* Chat: drawer que se abre encima, oculto por defecto */
+  #chat-panel{
+    position:fixed;top:0;left:0;bottom:0;
+    width:85vw;max-width:320px;
+    z-index:200;
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    box-shadow:4px 0 20px rgba(15,23,42,.2);
+    min-width:0;max-width:none;
+  }
+  #chat-panel.open{transform:translateX(0);}
+
+  /* Overlay when chat is open */
+  #chat-overlay{
+    display:none;position:fixed;inset:0;
+    background:rgba(15,23,42,.35);z-index:199;
+  }
+  #chat-overlay.show{display:block;}
+
+  /* Hide resize handle on mobile */
+  #resize-handle{display:none;}
+
+  /* Todo panel fills full screen */
+  #todo-panel{flex:1;flex-direction:column;min-width:0;overflow:hidden;}
+
+  /* Sidebar collapses to icon bar */
+  #sidebar{
+    width:100%;height:48px;
+    flex-direction:row;align-items:center;
+    padding:0 8px;gap:2px;
+    order:-1;
+    overflow-x:auto;overflow-y:hidden;
+  }
+  .sb-section-label{display:none;}
+  .list-item{
+    flex-direction:column;gap:2px;
+    padding:4px 8px;margin:0;
+    border-radius:6px;
+    font-size:10px;white-space:nowrap;
+    min-width:fit-content;
+  }
+  .list-item span:first-child{font-size:14px;}
+  .li-cnt{margin-left:0;margin-top:1px;}
+  .sdivider{display:none;}
+  #add-list-btn{flex-direction:column;gap:2px;padding:4px 8px;font-size:10px;white-space:nowrap;min-width:fit-content;}
+  #add-list-btn span:first-child{font-size:14px;}
+  #new-list-bar{position:fixed;bottom:70px;left:8px;right:8px;z-index:150;margin:0;}
+
+  /* Main fills remaining space */
+  #main{flex:1;min-height:0;}
+
+  /* Floating chat button */
+  #chat-fab{
+    display:flex;position:fixed;bottom:16px;right:16px;z-index:190;
+    width:48px;height:48px;border-radius:50%;
+    background:var(--a500);border:none;cursor:pointer;
+    align-items:center;justify-content:center;
+    box-shadow:0 4px 16px rgba(79,70,229,.4);
+    font-size:20px;color:#fff;
+    transition:background .15s,transform .15s;
+  }
+  #chat-fab:hover{background:var(--a600);transform:scale(1.05);}
+
+  /* Task detail modal full screen on mobile */
+  #task-detail-box{width:100%;max-width:100%;max-height:90%;border-radius:16px 16px 0 0;position:fixed;bottom:0;left:0;right:0;}
+  #task-detail-overlay{align-items:flex-end;}
+
+  /* Confirm modal full width */
+  #confirm-box{width:90%;max-width:100%;}
+
+  /* Filters scrollable */
+  .filter-bar{flex-wrap:nowrap;overflow-x:auto;padding:8px 12px;}
+  .filter-bar::-webkit-scrollbar{display:none;}
+
+  /* Q panel compact */
+  .q-options{grid-template-columns:1fr;}
+}
+
+/* Hide FAB on desktop */
+@media(min-width:641px){
+  #chat-fab{display:none;}
+  #chat-overlay{display:none !important;}
+}
 </style>
 </head>
 <body>
@@ -372,6 +469,10 @@ body{background:#E2E8F0;display:flex;align-items:center;justify-content:center;m
     </div>
   </div>
 </div>
+<!-- Mobile: chat overlay + FAB -->
+<div id="chat-overlay"></div>
+<button id="chat-fab" aria-label="Abrir asistente">💬</button>
+
 <div id="task-detail-overlay">
   <div id="task-detail-box">
     <div id="td-header">
@@ -563,6 +664,15 @@ if(S.view==='matrix'){document.getElementById('tab-matrix').click();}
 function render(){rSidebar();rList();}
 document.getElementById('t-welcome').textContent=now();
 document.getElementById('list-date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+// ── MOBILE CHAT TOGGLE ──
+const fab=document.getElementById('chat-fab');
+const chatOverlay=document.getElementById('chat-overlay');
+const chatPanel=document.getElementById('chat-panel');
+function openChat(){chatPanel.classList.add('open');chatOverlay.classList.add('show');fab.textContent='×';}
+function closeChat(){chatPanel.classList.remove('open');chatOverlay.classList.remove('show');fab.textContent='💬';}
+fab.addEventListener('click',()=>chatPanel.classList.contains('open')?closeChat():openChat());
+chatOverlay.addEventListener('click',closeChat);
+
 render();rMatrix();
 })();
 </script>
