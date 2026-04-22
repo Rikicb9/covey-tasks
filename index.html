@@ -155,6 +155,26 @@ button{touch-action:manipulation;cursor:pointer;}
 .add-sub-row{display:flex;align-items:center;gap:7px;padding:6px 0 0;}
 .add-sub-in{flex:1;border:none;background:#fff;font-size:max(16px,var(--text-sm));color:#111;outline:none;font-family:var(--fn);padding:3px 6px;border-bottom:1px solid var(--s200);border-radius:4px;}
 .add-sub-in::placeholder{color:#aaa;}
+/* Inline notes in list view */
+.task-notes{
+  width:100%;
+  min-height:80px;
+  resize:vertical;
+  border:1.5px solid var(--s200);
+  border-radius:7px;
+  padding:8px 10px;
+  font-size:var(--text-sm);
+  font-family:var(--fn);
+  color:#333;
+  background:#FAFAFA;
+  outline:none;
+  line-height:1.6;
+  margin-top:8px;
+  transition:border-color .15s,background .15s;
+}
+.task-notes:focus{border-color:var(--a400);background:#fff;}
+.task-notes::placeholder{color:#bbb;}
+.notes-label{font-size:var(--text-xs);font-weight:600;color:var(--s500);text-transform:uppercase;letter-spacing:.07em;margin-top:10px;padding-top:10px;border-top:1px dashed var(--s200);display:block;}
 .comp-hdr{display:flex;align-items:center;gap:7px;padding:10px 3px 6px;cursor:pointer;color:#333;font-size:var(--text-base);user-select:none;font-weight:500;min-height:36px;touch-action:manipulation;}
 .comp-hdr:hover{color:#000;}
 .comp-arr{font-size:9px;transition:transform .2s;}
@@ -182,13 +202,16 @@ button{touch-action:manipulation;cursor:pointer;}
 /* MATRIX */
 #view-matrix{display:none;flex:1;flex-direction:column;overflow:hidden;}
 #view-matrix.show{display:flex;}
-.mx-hdr{padding:12px 16px 8px;background:#fff;border-bottom:1px solid var(--s200);flex-shrink:0;}
+.mx-hdr{padding:10px 16px 7px;background:#fff;border-bottom:1px solid var(--s200);flex-shrink:0;}
 .mx-title{font-size:var(--text-lg);font-weight:700;color:#000;}
 
 /* ── MATRIX LAYOUT ── */
 .mx-outer{
-  flex:1;display:flex;overflow:hidden;
-  padding:10px 12px 12px 6px;
+  /* Fixed height ~55% of available space — leaves room for unclassified below */
+  height:55%;
+  flex-shrink:0;
+  display:flex;overflow:hidden;
+  padding:8px 10px 8px 4px;
   gap:6px;
 }
 /* Vertical axis label */
@@ -224,13 +247,13 @@ button{touch-action:manipulation;cursor:pointer;}
   flex:1;display:grid;
   grid-template-columns:1fr 1fr;
   grid-template-rows:1fr 1fr;
-  gap:10px;min-height:0;
+  gap:7px;min-height:0;
 }
 
 /* Quadrant cards */
 .mx-quad{
-  border-radius:12px;border:2px solid;
-  padding:12px 12px 10px;
+  border-radius:10px;border:2px solid;
+  padding:8px 10px 7px;
   display:flex;flex-direction:column;
   overflow:hidden;min-height:0;
   transition:outline .12s,box-shadow .15s;
@@ -332,6 +355,87 @@ button{touch-action:manipulation;cursor:pointer;}
 .mx-quad.q2 .mx-empty-lbl{color:#065F46;}
 .mx-quad.q3 .mx-empty-lbl{color:#92400E;}
 .mx-quad.q4 .mx-empty-lbl{color:#334155;}
+/* ── UNCLASSIFIED TASKS SECTION ── */
+#mx-unclassified-section{
+  flex:1;
+  display:flex;flex-direction:column;
+  border-top:2px dashed var(--s300);
+  background:#fff;
+  min-height:0;
+  overflow:hidden;
+}
+#mx-unclassified-hdr{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px 6px;flex-shrink:0;
+}
+#mx-unclassified-title{
+  font-size:var(--text-sm);font-weight:600;color:var(--s500);
+  text-transform:uppercase;letter-spacing:.06em;
+}
+#mx-unclassified-count{
+  font-size:var(--text-xs);background:var(--s200);
+  color:var(--s800);border-radius:10px;
+  padding:1px 7px;font-weight:600;font-family:var(--mono);
+}
+#mx-unclassified-hint{
+  font-size:var(--text-xs);color:var(--s400);margin-left:auto;
+}
+#mx-unclassified-list{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;
+  gap:3px;padding:4px 12px 10px;
+  -webkit-overflow-scrolling:touch;
+}
+#mx-unclassified-list::-webkit-scrollbar{width:3px;}
+#mx-unclassified-list::-webkit-scrollbar-thumb{background:var(--s200);border-radius:2px;}
+/* Drop zone highlight on the unclassified section itself */
+#mx-unclassified-section.drag-over{
+  background:var(--s100);
+  outline:2px dashed var(--s400);
+  outline-offset:-3px;
+  border-radius:0;
+}
+.mx-unclass-chip{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 12px;
+  border-radius:8px;
+  background:#fff;border:1px solid var(--s200);
+  font-size:var(--text-sm);color:var(--s800);font-weight:500;
+  cursor:grab;user-select:none;
+  transition:box-shadow .15s,border-color .15s,opacity .15s;
+  touch-action:manipulation;
+  min-height:36px;
+}
+.mx-unclass-chip:hover{border-color:var(--s400);box-shadow:0 2px 6px rgba(15,23,42,.08);}
+.mx-unclass-chip:active{cursor:grabbing;}
+.mx-unclass-chip.dragging{opacity:.35;}
+.mx-unclass-drag-handle{
+  color:var(--s400);font-size:12px;flex-shrink:0;
+  line-height:1;letter-spacing:-1px;
+}
+#mx-unclassified-empty{
+  font-size:var(--text-sm);color:var(--s400);
+  font-style:italic;padding:8px 0;
+  text-align:center;
+}
+/* TASK NOTES */
+#td-notes{
+  width:100%;
+  min-height:120px;
+  resize:vertical;
+  border:1.5px solid var(--s200);
+  border-radius:8px;
+  padding:10px 12px;
+  font-size:max(16px,var(--text-base));
+  font-family:var(--fn);
+  color:#333;
+  background:#FAFAFA;
+  outline:none;
+  line-height:1.6;
+  transition:border-color .15s,background .15s;
+}
+#td-notes:focus{border-color:var(--a400);background:#fff;}
+#td-notes::placeholder{color:#bbb;}
 /* TASK DETAIL */
 #task-detail-overlay{display:none;position:absolute;inset:0;background:rgba(15,23,42,.4);z-index:50;align-items:center;justify-content:center;}
 #task-detail-overlay.show{display:flex;}
@@ -583,6 +687,15 @@ button{touch-action:manipulation;cursor:pointer;}
             </div>
           </div>
         </div>
+        <!-- Unclassified tasks — draggable into quadrants -->
+        <div id="mx-unclassified-section">
+          <div id="mx-unclassified-hdr">
+            <span id="mx-unclassified-title">Sin clasificar</span>
+            <span id="mx-unclassified-count" style="display:none;"></span>
+            <span id="mx-unclassified-hint">Arrastra arriba para clasificar</span>
+          </div>
+          <div id="mx-unclassified-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -606,7 +719,7 @@ button{touch-action:manipulation;cursor:pointer;}
       <div id="td-empty-subs" style="display:none;">Sin subtareas todavía.</div>
       <div id="td-add-sub-row">
         <span style="color:#aaa;font-size:12px;flex-shrink:0;">+</span>
-        <input id="td-add-sub-in" placeholder="Añadir subtarea..." maxlength="80"/>
+        <input id="td-add-sub-in" placeholder="Añadir subtarea..." maxlength="500"/>
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--s200);">
         <div class="td-section-label" style="margin-bottom:6px;">Fecha de vencimiento</div>
@@ -614,6 +727,10 @@ button{touch-action:manipulation;cursor:pointer;}
           <input type="date" id="td-due-date" style="flex:1;border:1.5px solid var(--s300);border-radius:7px;padding:7px 10px;font-size:max(16px,var(--text-base));font-family:var(--fn);color:#333;outline:none;background:#fff;"/>
           <button id="td-due-clear" style="background:none;border:none;cursor:pointer;color:var(--s400);font-size:13px;padding:4px;touch-action:manipulation;" title="Quitar fecha">✕</button>
         </div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--s200);">
+        <div class="td-section-label" style="margin-bottom:6px;">Notas</div>
+        <textarea id="td-notes" placeholder="Añade notas, contexto o información relevante para esta tarea..."></textarea>
       </div>
     </div>
   </div>
@@ -924,6 +1041,7 @@ function openTaskDetail(id){
   const star=document.getElementById('td-star');star.textContent=t.star?'★':'☆';star.className='td-star'+(t.star?' on':'');
   renderDetailSubs(t);
   document.getElementById('td-due-date').value=t.due||'';
+  document.getElementById('td-notes').value=t.notes||'';
   document.getElementById('task-detail-overlay').classList.add('show');
 }
 function renderDetailSubs(t){
@@ -936,7 +1054,7 @@ function renderDetailSubs(t){
     const chk=document.createElement('div');chk.className='td-sub-chk'+(s.done?' done':'');
     chk.addEventListener('click',()=>{s.done=!s.done;save();render();rMatrix();renderDetailSubs(t);});
     const inp=document.createElement('input');inp.type='text';inp.className='td-sub-text'+(s.done?' done':'');
-    inp.value=s.text;inp.maxLength=80;
+    inp.value=s.text;inp.maxLength=500;
     inp.addEventListener('blur',()=>{const v=inp.value.trim();if(v)s.text=v;else t.subs=t.subs.filter(x=>x.id!==s.id);save();render();rMatrix();renderDetailSubs(t);});
     inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape')inp.blur();});
     const del=document.createElement('button');del.className='td-del-sub';del.textContent='×';
@@ -951,6 +1069,13 @@ document.getElementById('td-title').addEventListener('keydown',e=>{if(e.key==='E
 document.getElementById('td-check-wrap').addEventListener('click',()=>{if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.done=!t.done;document.getElementById('td-check').className=t.done?'done':'';document.getElementById('td-title').className=t.done?'done':'';save();render();rMatrix();});
 document.getElementById('td-star').addEventListener('click',()=>{if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.star=!t.star;syncImportante();const star=document.getElementById('td-star');star.textContent=t.star?'★':'☆';star.className='td-star'+(t.star?' on':'');save();render();});
 document.getElementById('td-add-sub-in').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.subs.push({id:S.nid++,text:e.target.value.trim(),done:false});e.target.value='';save();render();rMatrix();renderDetailSubs(t);}});
+// Notes autosave on change
+document.getElementById('td-notes').addEventListener('input',e=>{
+  if(detailTaskId===null)return;
+  const t=findAnyTask(detailTaskId);if(!t)return;
+  t.notes=e.target.value;
+  save();
+});
 document.getElementById('td-close').addEventListener('click',closeTaskDetail);
 document.getElementById('task-detail-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('task-detail-overlay'))closeTaskDetail();});
 function closeTaskDetail(){document.getElementById('task-detail-overlay').classList.remove('show');detailTaskId=null;}
@@ -1020,7 +1145,7 @@ function rList(){
     titleEl.addEventListener('blur',finish,{once:true});
   };
   document.getElementById('list-date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});const all=ft(),active=all.filter(t=>!t.done),done=all.filter(t=>t.done);const ac=document.getElementById('active-tasks');ac.innerHTML='';active.forEach(t=>ac.appendChild(mkTask(t)));const cs=document.getElementById('comp-section'),ct=document.getElementById('comp-tasks');ct.innerHTML='';if(done.length){cs.style.display='block';document.getElementById('comp-cnt').textContent=`(${done.length})`;if(S.showDone){ct.classList.remove('hidden');document.getElementById('comp-arr').classList.add('open');done.forEach(t=>ct.appendChild(mkTask(t)));}else{ct.classList.add('hidden');document.getElementById('comp-arr').classList.remove('open');}}else cs.style.display='none';if(!active.length&&!done.length)ac.innerHTML='<div id="empty"><div class="ei">📋</div><div>Sin tareas. Añade una nueva.</div></div>';}
-function mkTask(t){const div=document.createElement('div');div.className='task-row fi';const hs=t.subs&&t.subs.length>0,ds=hs?t.subs.filter(s=>s.done).length:0,ie=S.exp.has(t.id);const qb=t.q?`<span class="q-badge ${t.q}">${QMAP[t.q]}</span>`:'';const db=dueBadge(t.due);div.innerHTML=`<div class="task-main"><div class="check-wrap" data-a="tog" data-id="${t.id}"><div class="check-circle${t.done?' done':''}"></div></div><div class="task-text-wrap"><span class="task-text${t.done?' done':''}" data-a="txt" data-id="${t.id}">${esc(t.text)}</span></div><div class="task-meta">${qb}${hs?`<span class="sub-pill">${ds}/${t.subs.length}</span>`:''}<button class="star-btn${t.star?' on':''}" data-a="star" data-id="${t.id}">${t.star?'★':'☆'}</button><button class="del-btn" data-a="del" data-id="${t.id}">✕</button></div></div><div class="sub-panel${ie?' open':''}">${(t.subs||[]).map(s=>`<div class="sub-item"><div class="sub-chk${s.done?' done':''}" data-a="tsub" data-tid="${t.id}" data-sid="${s.id}"></div><span class="sub-txt${s.done?' done':''}" data-sid="${s.id}" data-tid="${t.id}">${esc(s.text)}</span><button class="del-sub" data-a="dsub" data-tid="${t.id}" data-sid="${s.id}">✕</button></div>`).join('')}<div class="add-sub-row"><span style="color:#aaa;font-size:13px;">+</span><input class="add-sub-in" placeholder="Añadir subtarea..." data-tid="${t.id}" maxlength="80"/></div></div>`;
+function mkTask(t){const div=document.createElement('div');div.className='task-row fi';const hs=t.subs&&t.subs.length>0,ds=hs?t.subs.filter(s=>s.done).length:0,ie=S.exp.has(t.id);const qb=t.q?`<span class="q-badge ${t.q}">${QMAP[t.q]}</span>`:'';const db=dueBadge(t.due);div.innerHTML=`<div class="task-main"><div class="check-wrap" data-a="tog" data-id="${t.id}"><div class="check-circle${t.done?' done':''}"></div></div><div class="task-text-wrap"><span class="task-text${t.done?' done':''}" data-a="txt" data-id="${t.id}">${esc(t.text)}</span></div><div class="task-meta">${qb}${hs?`<span class="sub-pill">${ds}/${t.subs.length}</span>`:''}<button class="star-btn${t.star?' on':''}" data-a="star" data-id="${t.id}">${t.star?'★':'☆'}</button><button class="del-btn" data-a="del" data-id="${t.id}">✕</button></div></div><div class="sub-panel${ie?' open':''}">${(t.subs||[]).map(s=>`<div class="sub-item"><div class="sub-chk${s.done?' done':''}" data-a="tsub" data-tid="${t.id}" data-sid="${s.id}"></div><span class="sub-txt${s.done?' done':''}" data-sid="${s.id}" data-tid="${t.id}">${esc(s.text)}</span><button class="del-sub" data-a="dsub" data-tid="${t.id}" data-sid="${s.id}">✕</button></div>`).join('')}<div class="add-sub-row"><span style="color:#aaa;font-size:13px;">+</span><input class="add-sub-in" placeholder="Añadir subtarea..." data-tid="${t.id}" maxlength="500"/></div><span class="notes-label">📝 Notas</span><textarea class="task-notes" data-tid="${t.id}" placeholder="Añade notas, contexto o información relevante..." maxlength="5000">${esc(t.notes||'')}</textarea></div>`;
 let ct2=null;div.querySelector('.task-main').addEventListener('click',e=>{
   if(e.target.closest('[data-a="tog"]')||e.target.closest('[data-a="star"]')||e.target.closest('[data-a="del"]'))return;
   const isMobile=window.matchMedia('(max-width:640px)').matches||navigator.maxTouchPoints>0&&window.innerWidth<=640;
@@ -1064,6 +1189,14 @@ div.addEventListener('click',e=>{
   inp.addEventListener('blur',save2);
 });
 div.querySelector('.add-sub-in').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){const tk=ft2(t.id);if(tk){tk.subs.push({id:S.nid++,text:e.target.value.trim(),done:false});e.target.value='';save();render();rMatrix();}}});
+// Notes autosave in list view
+div.querySelector('.task-notes').addEventListener('input',e=>{
+  const tid=parseInt(e.target.dataset.tid);
+  const tk=S.lists.flatMap(l=>l.tasks).find(x=>x.id===tid);
+  if(tk){tk.notes=e.target.value;save();}
+});
+// Prevent click on notes from collapsing the task
+div.querySelector('.task-notes').addEventListener('click',e=>e.stopPropagation());
 return div;}
 function editTask(id,el){const t=ft2(id);if(!t||!el)return;const inp=document.createElement('input');inp.className='task-edit-input';inp.value=t.text;inp.maxLength=120;el.parentNode.replaceChild(inp,el);inp.focus();inp.select();const sv=()=>{const v=inp.value.trim();if(v)t.text=v;save();render();rMatrix();};inp.addEventListener('keydown',e=>{if(e.key==='Enter')sv();if(e.key==='Escape')render();});inp.addEventListener('blur',sv);}
 function hAct(e){const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,id=parseInt(b.dataset.id);if(a==='tog'){e.stopPropagation();const t=ft2(id);if(t){t.done=!t.done;save();render();rMatrix();}}else if(a==='star'){e.stopPropagation();const t=ft2(id);if(t){t.star=!t.star;syncImportante();save();render();}}else if(a==='del'){e.stopPropagation();gl().tasks=gl().tasks.filter(t=>t.id!==id);S.exp.delete(id);save();render();rMatrix();}else if(a==='tsub'){e.stopPropagation();const t=ft2(parseInt(b.dataset.tid));if(t){const s=t.subs.find(s=>s.id===parseInt(b.dataset.sid));if(s){s.done=!s.done;save();render();rMatrix();}}}else if(a==='dsub'){e.stopPropagation();const t=ft2(parseInt(b.dataset.tid));if(t){t.subs=t.subs.filter(s=>s.id!==parseInt(b.dataset.sid));save();render();rMatrix();}}}
@@ -1104,36 +1237,105 @@ document.getElementById('confirm-delete').addEventListener('click',()=>{
   save();render();rMatrix();
 });
 let dragTaskId=null,dragSrcQ=null;
-function rMatrix(){
-  const all=allTasks();
-  ['q1','q2','q3','q4'].forEach(q=>{
-    const el=document.getElementById('mx-'+q);el.innerHTML='';
-    const tasks=all.filter(t=>t.q===q&&!t.done);
-    if(!tasks.length){el.innerHTML=`<div class="mx-empty-lbl">Sin tareas pendientes</div>`;return;}
-    tasks.forEach(t=>{
-      const d=document.createElement('div');d.className='mx-task-item';d.draggable=true;
-      d.innerHTML=`<div class="mx-dot"></div><span class="mx-task-label">${esc(t.text)}</span><button class="mx-del" title="Eliminar">×</button>`;
-      d.addEventListener('click',e=>{if(e.target.closest('.mx-del'))return;openTaskDetail(t.id);});
-      d.addEventListener('dragstart',e=>{dragTaskId=t.id;dragSrcQ=q;d.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(t.id));});
-      d.addEventListener('dragend',()=>{d.classList.remove('dragging');});
-      d.querySelector('.mx-del').addEventListener('click',e=>{e.stopPropagation();showConfirm(t.id);});
-      el.appendChild(d);
+
+function mkDragItem(t,q){
+  // q=null means unclassified chip; q='q1'..'q4' means quadrant item
+  if(!q){
+    // Unclassified chip — vertical list style
+    const chip=document.createElement('div');
+    chip.className='mx-unclass-chip';
+    chip.draggable=true;
+    chip.dataset.id=t.id;
+    chip.innerHTML=`<span class="mx-unclass-drag-handle">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text)}</span>`;
+    chip.addEventListener('click',()=>openTaskDetail(t.id));
+    chip.addEventListener('dragstart',e=>{
+      dragTaskId=t.id;dragSrcQ=null;
+      chip.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',String(t.id));
     });
-  });
+    chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
+    return chip;
+  } else {
+    // Quadrant task item — store id for click handler
+    const d=document.createElement('div');d.className='mx-task-item';d.draggable=true;d.dataset.taskId=t.id;
+    d.innerHTML=`<div class="mx-dot"></div><span class="mx-task-label">${esc(t.text)}</span><button class="mx-del" title="Eliminar">×</button>`;
+    d.addEventListener('click',e=>{if(e.target.closest('.mx-del'))return;openTaskDetail(t.id);});
+    d.addEventListener('dragstart',e=>{
+      dragTaskId=t.id;dragSrcQ=q;
+      d.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',String(t.id));
+    });
+    d.addEventListener('dragend',()=>d.classList.remove('dragging'));
+    d.querySelector('.mx-del').addEventListener('click',e=>{e.stopPropagation();showConfirm(t.id);});
+    return d;
+  }
+}
+
+function applyDrop(targetQ){
+  if(dragTaskId===null)return;
+  const task=allTasks().find(t=>t.id===dragTaskId);
+  if(task)task.q=targetQ||null;
+  dragTaskId=null;dragSrcQ=null;
+  save();render();rMatrix();
+}
+
+// ── Drop listeners set up ONCE (not inside rMatrix) ──
+function initDropZones(){
+  // Quadrants
   document.querySelectorAll('.mx-quad').forEach(quad=>{
     quad.addEventListener('dragover',e=>{e.preventDefault();quad.classList.add('drag-over');});
     quad.addEventListener('dragleave',e=>{if(!quad.contains(e.relatedTarget))quad.classList.remove('drag-over');});
     quad.addEventListener('drop',e=>{
       e.preventDefault();quad.classList.remove('drag-over');
-      const targetQ=quad.dataset.q;
-      if(dragTaskId!==null&&targetQ&&targetQ!==dragSrcQ){
-        let movedTask=null;
-        S.lists.forEach(l=>{const idx=l.tasks.findIndex(t=>t.id===dragTaskId);if(idx>=0){movedTask=l.tasks.splice(idx,1)[0];}});
-        if(movedTask){movedTask.q=targetQ;S.lists[S.al].tasks.push(movedTask);}
-        dragTaskId=null;dragSrcQ=null;save();render();rMatrix();
-      }
+      applyDrop(quad.dataset.q);
     });
   });
+  // Unclassified section
+  const uSection=document.getElementById('mx-unclassified-section');
+  uSection.addEventListener('dragover',e=>{
+    e.preventDefault();
+    uSection.classList.add('drag-over');
+  });
+  uSection.addEventListener('dragleave',e=>{
+    if(!uSection.contains(e.relatedTarget))uSection.classList.remove('drag-over');
+  });
+  uSection.addEventListener('drop',e=>{
+    e.preventDefault();
+    uSection.classList.remove('drag-over');
+    applyDrop(null); // always unclassify whatever lands here
+  });
+}
+
+function rMatrix(){
+  const all=allTasks();
+
+  // ── Quadrant items ──
+  ['q1','q2','q3','q4'].forEach(q=>{
+    const el=document.getElementById('mx-'+q);el.innerHTML='';
+    const tasks=all.filter(t=>t.q===q&&!t.done);
+    if(!tasks.length){el.innerHTML=`<div class="mx-empty-lbl">Sin tareas pendientes</div>`;}
+    else tasks.forEach(t=>el.appendChild(mkDragItem(t,q)));
+  });
+
+  // ── Unclassified items ──
+  const unclassified=all.filter(t=>!t.q&&!t.done);
+  const uList=document.getElementById('mx-unclassified-list');
+  const uCount=document.getElementById('mx-unclassified-count');
+  const uHint=document.getElementById('mx-unclassified-hint');
+  uList.innerHTML='';
+
+  if(!unclassified.length){
+    uList.innerHTML='<div id="mx-unclassified-empty">✓ Todas las tareas están clasificadas</div>';
+    uCount.style.display='none';
+    uHint.style.display='none';
+  } else {
+    uCount.textContent=unclassified.length;
+    uCount.style.display='inline';
+    uHint.style.display='inline';
+    unclassified.forEach(t=>uList.appendChild(mkDragItem(t,null)));
+  }
 }
 function startQ(text){S.qf={ans:[null,null,null,null],cur:0,pt:{text,id:S.nid++}};document.getElementById('q-tname-text').textContent=text.length>28?text.slice(0,28)+'…':text;document.getElementById('q-panel').classList.add('show');rQ();}
 function rQ(){
@@ -1328,11 +1530,16 @@ function render(){rSidebar();rList();}
 // ── CLICK OUTSIDE → COLLAPSE ALL EXPANDED TASKS ──
 document.addEventListener('click',e=>{
   if(!S.exp.size)return;
-  // Don't collapse if clicking inside a task row or a modal
+  // If target was removed from DOM by a re-render (e.g. after adding subtask),
+  // isConnected will be false — don't collapse in that case.
+  if(!e.target.isConnected)return;
+  // Don't collapse if clicking inside a task row or any modal
   if(e.target.closest('.task-row')||
      e.target.closest('#task-detail-overlay')||
      e.target.closest('#confirm-overlay')||
-     e.target.closest('#review-overlay'))return;
+     e.target.closest('#review-overlay')||
+     e.target.closest('#q-panel')||
+     e.target.closest('#add-bar'))return;
   S.exp.clear();
   rList();
 });
@@ -1340,6 +1547,7 @@ document.addEventListener('click',e=>{
 
 
 render();rMatrix();
+initDropZones();
 })();
 </script>
 </body>
