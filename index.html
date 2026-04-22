@@ -1275,8 +1275,18 @@ function mkDragItem(t,q){
 
 function applyDrop(targetQ){
   if(dragTaskId===null)return;
-  const task=allTasks().find(t=>t.id===dragTaskId);
-  if(task)task.q=targetQ||null;
+  // Remove task from its current list position and re-append to end
+  // so it always appears last in the target quadrant/section
+  let movedTask=null;
+  S.lists.forEach(l=>{
+    const idx=l.tasks.findIndex(t=>t.id===dragTaskId);
+    if(idx>=0){movedTask=l.tasks.splice(idx,1)[0];}
+  });
+  if(movedTask){
+    movedTask.q=targetQ||null;
+    // Append to end of current active list so order is deterministic
+    S.lists[S.al].tasks.push(movedTask);
+  }
   dragTaskId=null;dragSrcQ=null;
   save();render();rMatrix();
 }
