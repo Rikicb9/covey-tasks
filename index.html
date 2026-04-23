@@ -621,6 +621,71 @@ button{touch-action:manipulation;cursor:pointer;}
 }
 
 
+
+/* ── AUTH / LOGIN ── */
+#auth-overlay{
+  display:none;position:fixed;inset:0;z-index:999;
+  background:var(--s900);
+  align-items:center;justify-content:center;
+}
+#auth-overlay.show{display:flex;}
+#auth-box{
+  background:#fff;border-radius:16px;
+  width:min(380px,92vw);
+  padding:32px 28px 28px;
+  box-shadow:0 24px 64px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:20px;
+}
+#auth-logo{
+  font-size:22px;font-weight:800;color:var(--s900);
+  letter-spacing:-.5px;
+}
+#auth-logo span{color:var(--a500);}
+#auth-subtitle{font-size:var(--text-sm);color:var(--s500);margin-top:-12px;}
+#auth-mode-toggle{
+  display:flex;background:var(--s100);border-radius:9px;padding:3px;gap:3px;
+}
+.auth-mode-btn{
+  flex:1;padding:7px;border:none;border-radius:7px;
+  font-size:var(--text-sm);font-weight:600;cursor:pointer;
+  font-family:var(--fn);color:var(--s500);background:transparent;
+  transition:all .15s;
+}
+.auth-mode-btn.active{background:#fff;color:var(--s900);box-shadow:0 1px 4px rgba(0,0,0,.1);}
+.auth-field{display:flex;flex-direction:column;gap:5px;}
+.auth-label{font-size:var(--text-xs);font-weight:600;color:var(--s800);text-transform:uppercase;letter-spacing:.06em;}
+.auth-input{
+  border:1.5px solid var(--s300);border-radius:9px;
+  padding:10px 13px;font-size:max(16px,var(--text-base));
+  font-family:var(--fn);color:#000;outline:none;
+  transition:border-color .15s;
+}
+.auth-input:focus{border-color:var(--a500);}
+#auth-submit{
+  background:var(--a500);color:#fff;border:none;border-radius:9px;
+  padding:12px;font-size:var(--text-base);font-weight:700;
+  cursor:pointer;font-family:var(--fn);
+  transition:background .15s;min-height:var(--touch-min);
+}
+#auth-submit:hover{background:var(--a600);}
+#auth-submit:disabled{background:var(--s400);cursor:not-allowed;}
+#auth-error{
+  font-size:var(--text-sm);color:var(--red);
+  background:var(--redb);border-radius:7px;
+  padding:8px 12px;display:none;line-height:1.4;
+}
+#auth-error.show{display:block;}
+#auth-footer{font-size:var(--text-xs);color:var(--s400);text-align:center;line-height:1.5;}
+/* User badge in top bar */
+#user-badge{
+  display:flex;align-items:center;gap:6px;
+  margin-left:auto;padding:0 8px;cursor:pointer;
+  color:#8899aa;font-size:var(--text-xs);
+  border:none;background:transparent;font-family:var(--fn);
+  transition:color .15s;touch-action:manipulation;
+  white-space:nowrap;
+}
+#user-badge:hover{color:#fff;}
 </style>
 </head>
 <body>
@@ -639,6 +704,7 @@ button{touch-action:manipulation;cursor:pointer;}
         <button class="tab-btn active" id="tab-list">📋 Lista</button>
         <button class="tab-btn" id="tab-matrix">⊞ Covey</button>
         <button class="tab-btn" id="tab-review" style="margin-left:auto;">🔄 Revisión</button>
+        <button id="user-badge" title="Cerrar sesión">●&nbsp;<span id="user-email-label"></span></button>
         <div id="sync-dot" title="Sincronizando..." style="width:7px;height:7px;border-radius:50%;background:#F59E0B;flex-shrink:0;margin:auto 6px auto 4px;transition:background .5s;"></div>
       </div>
       <div id="view-list">
@@ -767,13 +833,103 @@ button{touch-action:manipulation;cursor:pointer;}
 </div>
 </div>
 
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay">
+  <div id="auth-box">
+    <div id="auth-logo">✦ Covey <span>Tasks</span></div>
+    <div id="auth-subtitle">Tu gestor de tareas personal</div>
+    <div id="auth-mode-toggle">
+      <button class="auth-mode-btn active" id="btn-signin">Iniciar sesión</button>
+      <button class="auth-mode-btn" id="btn-signup">Crear cuenta</button>
+    </div>
+    <div id="auth-error"></div>
+    <div class="auth-field">
+      <label class="auth-label" for="auth-email">Email</label>
+      <input class="auth-input" id="auth-email" type="email" placeholder="tu@email.com" autocomplete="email"/>
+    </div>
+    <div class="auth-field">
+      <label class="auth-label" for="auth-password">Contraseña</label>
+      <input class="auth-input" id="auth-password" type="password" placeholder="Mínimo 6 caracteres" autocomplete="current-password"/>
+    </div>
+    <button id="auth-submit">Iniciar sesión</button>
+    <div id="auth-footer">Tus datos están cifrados y son solo tuyos.</div>
+  </div>
+</div>
+
 <script>
 (function(){
 // ── SUPABASE CONFIG ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
-const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyb3Ntd3ZtYWx5b2dpcHR1eXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjczNDcsImV4cCI6MjA5MTgwMzM0N30.ZbEwcJ-aDJZWLGF4ql9XeTKebpPYTzlrLK8lbkDpoAU';
-const SB_HEADERS={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyb3Ntd3ZtYWx5b2dpcHR1eXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjczNDcsImV4cCI6MjA5MTgwMzM0N30.ZbEwcJ-aDJZWLGF4ql9XeTKebpPYTzlrLK8lbkDpoAU';
 const STORAGE_KEY='covey-tasks-v1';
+const SESSION_KEY='covey-session';
+
+// Auth state
+let authSession=null; // {access_token, refresh_token, user:{id,email}}
+
+function authHeaders(){
+  const token=authSession?.access_token||SB_ANON;
+  return {'Content-Type':'application/json','apikey':SB_ANON,'Authorization':'Bearer '+token};
+}
+function userStorageKey(){
+  return authSession?`${STORAGE_KEY}-${authSession.user.id}`:STORAGE_KEY;
+}
+
+// ── AUTH FUNCTIONS ──
+async function signIn(email,password){
+  const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
+    method:'POST',headers:{'Content-Type':'application/json','apikey':SB_ANON},
+    body:JSON.stringify({email,password})
+  });
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error_description||d.msg||'Error de autenticación');
+  return {access_token:d.access_token,refresh_token:d.refresh_token,
+          expires_at:Date.now()+d.expires_in*1000,
+          user:{id:d.user.id,email:d.user.email}};
+}
+async function signUp(email,password){
+  const r=await fetch(`${SB_URL}/auth/v1/signup`,{
+    method:'POST',headers:{'Content-Type':'application/json','apikey':SB_ANON},
+    body:JSON.stringify({email,password})
+  });
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error_description||d.msg||'Error al crear cuenta');
+  // Auto sign in after signup
+  return signIn(email,password);
+}
+async function signOut(){
+  try{
+    await fetch(`${SB_URL}/auth/v1/logout`,{
+      method:'POST',headers:authHeaders()
+    });
+  }catch(e){}
+  authSession=null;
+  localStorage.removeItem(SESSION_KEY);
+  showAuthScreen();
+}
+async function refreshSession(){
+  if(!authSession?.refresh_token)return false;
+  try{
+    const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{
+      method:'POST',headers:{'Content-Type':'application/json','apikey':SB_ANON},
+      body:JSON.stringify({refresh_token:authSession.refresh_token})
+    });
+    if(!r.ok)return false;
+    const d=await r.json();
+    authSession={...authSession,access_token:d.access_token,
+      refresh_token:d.refresh_token,expires_at:Date.now()+d.expires_in*1000};
+    localStorage.setItem(SESSION_KEY,JSON.stringify(authSession));
+    return true;
+  }catch(e){return false;}
+}
+async function ensureValidSession(){
+  if(!authSession)return false;
+  // Refresh if token expires in less than 60 seconds
+  if(Date.now()>authSession.expires_at-60000){
+    return refreshSession();
+  }
+  return true;
+}
 
 const QS=[
   {
@@ -828,7 +984,7 @@ function stateFromRaw(saved){
 }
 function loadFromLocal(){
   try{
-    const raw=localStorage.getItem(STORAGE_KEY);
+    const raw=localStorage.getItem(userStorageKey());
     if(raw)return stateFromRaw(JSON.parse(raw));
   }catch(e){}
   const s=JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -840,26 +996,33 @@ function toSaveObj(){
 function saveLocal(){
   try{
     const payload=toSaveObj();
-    payload._localTs=new Date().toISOString(); // timestamp of last local write
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
+    payload._localTs=new Date().toISOString();
+    localStorage.setItem(userStorageKey(),JSON.stringify(payload));
   }catch(e){}
 }
 async function loadFromCloud(){
+  if(!authSession)return null;
+  await ensureValidSession();
   try{
-    const res=await fetch(`${SB_URL}/rest/v1/covey_state?id=eq.default&select=data,updated_at`,{headers:SB_HEADERS});
+    const res=await fetch(
+      `${SB_URL}/rest/v1/covey_state?user_id=eq.${authSession.user.id}&select=data,updated_at`,
+      {headers:authHeaders()}
+    );
     if(!res.ok)return null;
     const rows=await res.json();
-    if(rows.length&&rows[0].data)return rows[0]; // {data, updated_at}
+    if(rows.length&&rows[0].data)return rows[0];
   }catch(e){}
   return null;
 }
 async function saveToCloud(data){
+  if(!authSession)return;
+  await ensureValidSession();
   const ts=new Date().toISOString();
   try{
     await fetch(`${SB_URL}/rest/v1/covey_state`,{
       method:'POST',
-      headers:{...SB_HEADERS,'Prefer':'resolution=merge-duplicates'},
-      body:JSON.stringify({id:'default',data,updated_at:ts})
+      headers:{...authHeaders(),'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({user_id:authSession.user.id,data,updated_at:ts})
     });
     lastCloudTs=ts;
   }catch(e){}
@@ -883,8 +1046,8 @@ function save(){
   },300);
 }
 
-// Init: load from local immediately, then sync from cloud
-let S=loadFromLocal();
+// S initialised in initApp() after auth
+let S=null;
 
 const gl=()=>S.lists[S.al];
 const ft=()=>{let t=gl().tasks;if(S.filter==='pending')t=t.filter(x=>!x.done);if(S.filter==='starred')t=t.filter(x=>x.star);if(['q1','q2','q3','q4'].includes(S.filter))t=t.filter(x=>x.q===S.filter);return t;};
@@ -984,49 +1147,106 @@ async function pullFromCloud(){
   isSyncing=false;
 }
 
-// ── INITIAL LOAD ──
-// 1. Render immediately from localStorage (instant, no wait)
-// 2. Pull from Supabase — apply only if cloud is strictly newer than local
-// 3. Only after this completes, set cloudReady=true to allow cloud writes
-// This prevents an empty local state from overwriting cloud data on first open.
-(async()=>{
+// ── AUTH UI ──
+function showAuthScreen(){
+  document.getElementById('auth-overlay').classList.add('show');
+}
+function hideAuthScreen(){
+  document.getElementById('auth-overlay').classList.remove('show');
+}
+function setAuthMode(mode){
+  const isSignIn=mode==='signin';
+  document.getElementById('btn-signin').classList.toggle('active',isSignIn);
+  document.getElementById('btn-signup').classList.toggle('active',!isSignIn);
+  document.getElementById('auth-submit').textContent=isSignIn?'Iniciar sesión':'Crear cuenta';
+  document.getElementById('auth-password').autocomplete=isSignIn?'current-password':'new-password';
+  document.getElementById('auth-error').classList.remove('show');
+}
+document.getElementById('btn-signin').addEventListener('click',()=>setAuthMode('signin'));
+document.getElementById('btn-signup').addEventListener('click',()=>setAuthMode('signup'));
+document.getElementById('auth-password').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('auth-submit').click();});
+document.getElementById('auth-submit').addEventListener('click',async()=>{
+  const email=document.getElementById('auth-email').value.trim();
+  const password=document.getElementById('auth-password').value;
+  const isSignIn=document.getElementById('btn-signin').classList.contains('active');
+  const errEl=document.getElementById('auth-error');
+  const btn=document.getElementById('auth-submit');
+  if(!email||!password){errEl.textContent='Rellena email y contraseña.';errEl.classList.add('show');return;}
+  btn.disabled=true;btn.textContent='Conectando...';errEl.classList.remove('show');
+  try{
+    const session=isSignIn?await signIn(email,password):await signUp(email,password);
+    authSession=session;
+    localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+    await initApp();
+  }catch(err){
+    errEl.textContent=err.message;errEl.classList.add('show');
+    btn.disabled=false;btn.textContent=isSignIn?'Iniciar sesión':'Crear cuenta';
+  }
+});
+document.getElementById('user-badge').addEventListener('click',async()=>{
+  if(confirm('¿Cerrar sesión?'))await signOut();
+});
+
+// ── BOOT: check for stored session ──
+async function initApp(){
+  hideAuthScreen();
+  // Show user email in badge
+  const emailLabel=document.getElementById('user-email-label');
+  if(emailLabel&&authSession)emailLabel.textContent=authSession.user.email.split('@')[0];
+
+  // Load local state for this user, render immediately
+  S=loadFromLocal();
+  render();
+  if(S.view==='matrix'){
+    document.getElementById('view-list').style.display='none';
+    document.getElementById('view-matrix').classList.add('show');
+    document.getElementById('tab-list').classList.remove('active');
+    document.getElementById('tab-matrix').classList.add('active');
+  }
+  rMatrix();
+  initDropZones();
+
+  // Pull from cloud
   setSyncStatus('syncing');
   try{
     const row=await loadFromCloud();
     if(row){
       lastCloudTs=row.updated_at;
       let localTs=null;
-      try{
-        const raw=localStorage.getItem(STORAGE_KEY);
-        if(raw){const parsed=JSON.parse(raw);localTs=parsed._localTs||null;}
-      }catch(e){}
-      // Cloud wins if: no local data at all, OR cloud is strictly newer
+      try{const raw=localStorage.getItem(userStorageKey());if(raw)localTs=JSON.parse(raw)._localTs;}catch(e){}
       const cloudNewer=!localTs||new Date(row.updated_at)>new Date(localTs);
       if(cloudNewer)applyRemote(row.data);
     }
     setSyncStatus('ok');
-  }catch(e){
-    setSyncStatus('offline');
-  } finally {
-    cloudReady=true;  // ← NOW allow cloud writes, regardless of outcome
-    // If the user made changes while we were loading, push them now
-    if(saveTimer){
-      clearTimeout(saveTimer);
-      saveTimer=null;
-      setSyncStatus('syncing');
-      await saveToCloud(toSaveObj());
-      setSyncStatus('ok');
-    }
+  }catch(e){setSyncStatus('offline');}
+  finally{
+    cloudReady=true;
+    if(saveTimer){clearTimeout(saveTimer);saveTimer=null;setSyncStatus('syncing');await saveToCloud(toSaveObj());setSyncStatus('ok');}
   }
+
+  // Start polling
+  setInterval(pullFromCloud,25000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullFromCloud();});
+}
+
+// Check for existing session in localStorage
+(async()=>{
+  try{
+    const stored=localStorage.getItem(SESSION_KEY);
+    if(stored){
+      authSession=JSON.parse(stored);
+      // Refresh if needed
+      const valid=await ensureValidSession();
+      if(valid){
+        await initApp();
+        return;
+      }
+    }
+  }catch(e){}
+  // No valid session — show login
+  authSession=null;
+  showAuthScreen();
 })();
-
-// Poll every 25 seconds
-setInterval(pullFromCloud,25000);
-
-// Sync when tab/app becomes visible again
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible')pullFromCloud();
-});
 
 
 
@@ -1388,8 +1608,7 @@ const alb=document.getElementById('add-list-btn'),nlb=document.getElementById('n
 alb.addEventListener('click',()=>{nlb.classList.add('show');nli.focus();});
 nli.addEventListener('keydown',e=>{if(e.key==='Enter'&&nli.value.trim()){S.lists.push({id:S.lists.length,name:nli.value.trim(),icon:'📁',tasks:[]});nli.value='';nlb.classList.remove('show');S.al=S.lists.length-1;save();render();}if(e.key==='Escape'){nlb.classList.remove('show');nli.value='';}});
 
-// restore view state
-if(S.view==='matrix'){document.getElementById('tab-matrix').click();}
+// view state restored in initApp()
 // ── WEEKLY REVIEW ──
 let reviewStep=0; // 0=clean, 1=q3q4, 2=q2plan
 
@@ -1556,8 +1775,7 @@ document.addEventListener('click',e=>{
 
 
 
-render();rMatrix();
-initDropZones();
+// app boot handled by initApp() above
 })();
 </script>
 </body>
