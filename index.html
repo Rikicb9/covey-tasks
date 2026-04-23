@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#1E293B"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -71,7 +74,15 @@ button{touch-action:manipulation;cursor:pointer;}
 #new-list-bar.show{display:flex;}
 #new-list-input{flex:1;border:none;background:transparent;font-size:max(16px,var(--text-base));color:#fff;outline:none;font-family:var(--fn);}
 #main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--s50);}
-#top-tabs{display:flex;background:var(--s900);padding:0 16px;flex-shrink:0;border-bottom:1px solid var(--s800);}
+#top-tabs{
+  display:flex;background:var(--s900);
+  padding:0 8px;flex-shrink:0;
+  border-bottom:1px solid var(--s800);
+  overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+#top-tabs::-webkit-scrollbar{display:none;}
 .tab-btn{padding:11px 14px;font-size:var(--text-base);cursor:pointer;border:none;background:transparent;color:#8899aa;border-bottom:2.5px solid transparent;font-family:var(--fn);font-weight:500;transition:all .15s;margin-bottom:-1px;white-space:nowrap;min-height:var(--touch-min);touch-action:manipulation;}
 .tab-btn:hover{color:#fff;}
 .tab-btn:active{color:#fff;}
@@ -585,25 +596,35 @@ button{touch-action:manipulation;cursor:pointer;}
   #sidebar{
     width:100%;height:52px;
     flex-direction:row;align-items:center;
-    padding:0 8px;gap:2px;
+    padding:0 4px;gap:2px;
     order:-1;
     overflow-x:auto;overflow-y:hidden;
     -webkit-overflow-scrolling:touch;
+    flex-wrap:nowrap;
   }
   #sidebar::-webkit-scrollbar{display:none;}
   .sb-section-label{display:none;}
   .list-item{
-    flex-direction:column;gap:2px;
-    padding:4px 10px;margin:0;min-height:44px;
+    flex-direction:column;gap:1px;
+    padding:4px 8px;margin:0;min-height:44px;
     border-radius:6px;
     font-size:var(--text-xs);white-space:nowrap;
-    min-width:fit-content;
+    min-width:44px;flex-shrink:0;
   }
-  .list-item span:first-child{font-size:16px;}
+  .list-item span:first-child{font-size:15px;}
+  /* Hide text label of list items on very small screens, show only icon */
+  @media(max-width:380px){
+    .list-item span:last-of-type:not(.li-cnt){display:none;}
+    .list-item{min-width:36px;padding:4px 6px;}
+  }
   .li-cnt{margin-left:0;margin-top:1px;}
   .sdivider{display:none;}
-  #add-list-btn{flex-direction:column;gap:2px;padding:4px 10px;font-size:var(--text-xs);white-space:nowrap;min-width:fit-content;min-height:44px;}
-  #add-list-btn span:first-child{font-size:16px;}
+  #add-list-btn{
+    flex-direction:column;gap:1px;padding:4px 8px;
+    font-size:var(--text-xs);white-space:nowrap;
+    min-width:44px;flex-shrink:0;min-height:44px;
+  }
+  #add-list-btn span:first-child{font-size:15px;}
   #new-list-bar{position:fixed;bottom:70px;left:8px;right:8px;z-index:150;margin:0;}
 
   /* Main fills remaining space */
@@ -613,6 +634,9 @@ button{touch-action:manipulation;cursor:pointer;}
   .task-main{min-height:52px;}
   .filter-chip{min-height:36px;padding:7px 14px !important;}
 
+  /* Tabs: smaller on mobile so all fit or scroll */
+  .tab-btn{padding:10px 10px;font-size:var(--text-sm);}
+  #user-badge{padding:0 6px;font-size:var(--text-xs);}
   /* Q options single column on mobile */
   .q-options{grid-template-columns:1fr;}
 
@@ -765,7 +789,7 @@ button{touch-action:manipulation;cursor:pointer;}
       <div id="top-tabs">
         <button class="tab-btn active" id="tab-list">📋 Lista</button>
         <button class="tab-btn" id="tab-matrix">⊞ Covey</button>
-        <button class="tab-btn" id="tab-review" style="margin-left:auto;">🔄 Revisión</button>
+        <button class="tab-btn" id="tab-review">🔄 Revisión</button>
         <button id="user-badge" title="Cerrar sesión">●&nbsp;<span id="user-email-label"></span></button>
         <div id="sync-dot" title="Sincronizando..." style="width:7px;height:7px;border-radius:50%;background:#F59E0B;flex-shrink:0;margin:auto 6px auto 4px;transition:background .5s;"></div>
       </div>
@@ -1036,12 +1060,18 @@ const QS=[
   }
 ];
 const QMAP={q1:'Q1',q2:'Q2',q3:'Q3',q4:'Q4'};
-const DEFAULT_STATE={al:0,filter:'all',showDone:false,view:'list',lists:[{id:0,name:'Mi día',icon:'☀️',tasks:[]},{id:1,name:'Importante',icon:'⭐',tasks:[]},{id:2,name:'Planeado',icon:'📅',tasks:[]},{id:3,name:'Tareas',icon:'✔️',tasks:[]}],nid:1};
+const DEFAULT_STATE={al:0,filter:'all',showDone:false,view:'list',lists:[{id:0,name:'Mi día',icon:'☀️',tasks:[]},{id:1,name:'Importante',icon:'⭐',tasks:[]}],nid:1};
 
 // ── PERSISTENCE: localStorage (cache) + Supabase (cloud) ──
 function stateFromRaw(saved){
   saved.exp=new Set();
   saved.qf={ans:[null,null,null,null],cur:0,pt:null};
+  // Migration: remove Planeado and Tareas if they still exist from old data
+  if(saved.lists){
+    saved.lists=saved.lists.filter(l=>l.name!=='Planeado'&&l.name!=='Tareas');
+    // Ensure al index is valid after removal
+    if(saved.al>=saved.lists.length)saved.al=0;
+  }
   return saved;
 }
 function loadFromLocal(){
@@ -1431,7 +1461,7 @@ function rSidebar(){
   const nav=document.getElementById('list-nav');nav.innerHTML='';
   S.lists.forEach((l,i)=>{
     const p=l.tasks.filter(t=>!t.done).length;
-    const isSystem=i<4; // first 4 lists are built-in
+    const isSystem=i<2; // Mi día and Importante are built-in
     const el=document.createElement('div');
     el.className='list-item'+(i===S.al?' active':'');
     el.innerHTML=`<span>${l.icon}</span><span style="flex:1">${l.name}</span>`+
