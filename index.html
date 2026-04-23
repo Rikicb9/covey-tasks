@@ -646,6 +646,30 @@ button{touch-action:manipulation;cursor:pointer;}
 
 
 
+/* ── PULL TO REFRESH ── */
+#ptr-indicator{
+  position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-60px);
+  z-index:500;
+  width:40px;height:40px;border-radius:50%;
+  background:#fff;box-shadow:0 2px 12px rgba(15,23,42,.18);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+  transition:transform .2s ease,opacity .2s ease;
+  opacity:0;pointer-events:none;
+}
+#ptr-indicator.pulling{
+  opacity:1;
+  /* transform controlled by JS */
+}
+#ptr-indicator.releasing{
+  opacity:1;
+  transition:transform .15s ease,opacity .15s ease;
+}
+#ptr-indicator.loading{
+  opacity:1;transform:translateX(-50%) translateY(12px);
+  animation:ptr-spin .6s linear infinite;
+}
+@keyframes ptr-spin{from{transform:translateX(-50%) translateY(12px) rotate(0deg);}to{transform:translateX(-50%) translateY(12px) rotate(360deg);}}
 /* ── AUTH / LOGIN ── */
 #auth-overlay{
   display:none;position:fixed;inset:0;z-index:999;
@@ -713,6 +737,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </style>
 </head>
 <body>
+<div id="ptr-indicator">↻</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
@@ -1251,6 +1276,71 @@ async function initApp(){
   // Start polling
   setInterval(pullFromCloud,25000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullFromCloud();});
+
+  // ── PULL TO REFRESH (mobile only) ──
+  if('ontouchstart' in window){
+    const PTR_THRESHOLD=72;  // px to pull before triggering
+    const indicator=document.getElementById('ptr-indicator');
+    let ptrStartY=0,ptrDist=0,ptrActive=false,ptrTriggered=false;
+
+    // Only trigger PTR when the scrollable container is at the top
+    function isAtTop(){
+      const tc=document.getElementById('tasks-container');
+      const vm=document.getElementById('mx-unclassified-list');
+      const active=document.getElementById('view-matrix').classList.contains('show');
+      const el=active?vm:tc;
+      return !el||el.scrollTop<=0;
+    }
+
+    document.addEventListener('touchstart',e=>{
+      if(e.touches.length!==1)return;
+      if(!isAtTop())return;
+      ptrStartY=e.touches[0].clientY;
+      ptrActive=true;ptrTriggered=false;ptrDist=0;
+    },{passive:true});
+
+    document.addEventListener('touchmove',e=>{
+      if(!ptrActive)return;
+      const y=e.touches[0].clientY;
+      ptrDist=Math.max(0,y-ptrStartY);
+      if(ptrDist<4)return;
+      if(!isAtTop()){ptrActive=false;indicator.className='';indicator.style.transform='';return;}
+      // Apply rubber-band dampening so it feels natural
+      const pull=Math.min(ptrDist*.45,PTR_THRESHOLD*.85);
+      indicator.className='pulling';
+      // Rotate icon based on progress
+      const progress=Math.min(pull/(PTR_THRESHOLD*.7),1);
+      const deg=Math.round(progress*180);
+      indicator.style.transform=`translateX(-50%) translateY(${-60+pull}px) rotate(${deg}deg)`;
+      if(ptrDist>PTR_THRESHOLD&&!ptrTriggered){
+        ptrTriggered=true;
+        // Haptic feedback if available
+        if(navigator.vibrate)navigator.vibrate(18);
+      }
+    },{passive:true});
+
+    document.addEventListener('touchend',async ()=>{
+      if(!ptrActive)return;
+      ptrActive=false;
+      if(!ptrTriggered){
+        // Not pulled far enough — snap back
+        indicator.className='releasing';
+        indicator.style.transform='translateX(-50%) translateY(-60px)';
+        setTimeout(()=>{indicator.className='';indicator.style.transform='';},200);
+        return;
+      }
+      // Triggered — show loading spinner and pull from cloud
+      indicator.className='loading';
+      indicator.style.transform='';
+      try{
+        await pullFromCloud();
+      }finally{
+        indicator.className='releasing';
+        indicator.style.transform='translateX(-50%) translateY(-60px)';
+        setTimeout(()=>{indicator.className='';indicator.style.transform='';},300);
+      }
+    },{passive:true});
+  }
 }
 
 // Check for existing session in localStorage
