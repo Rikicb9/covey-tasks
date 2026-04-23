@@ -601,9 +601,15 @@ button{touch-action:manipulation;cursor:pointer;}
     overflow-x:auto;overflow-y:hidden;
     -webkit-overflow-scrolling:touch;
     flex-wrap:nowrap;
-    background:var(--s800); /* slightly lighter than s900 to distinguish from tabs */
+    background:var(--s800);
   }
   #sidebar::-webkit-scrollbar{display:none;}
+  /* list-nav must also be a horizontal flex row */
+  #list-nav{
+    display:flex;flex-direction:row;
+    align-items:center;gap:4px;
+    flex-shrink:0;
+  }
   .sb-section-label{display:none;}
   .sdivider{display:none;}
   /* Pill style: icon + label inline, horizontal */
@@ -810,7 +816,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V1.6 · 2026.04.23</div>
+<div id="version-badge">V1.7 · 2026.04.23</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
