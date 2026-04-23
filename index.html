@@ -662,10 +662,25 @@ button{touch-action:manipulation;cursor:pointer;}
   #tasks-container{padding-bottom:max(80px, calc(60px + env(safe-area-inset-bottom)));}
 
   /* Matrix: tighter on mobile */
-  .mx-grid{gap:7px;}
-  .mx-quad{padding:9px 10px 8px;}
-  .mx-task-item{min-height:36px;padding:5px 7px;font-size:var(--text-sm);}
-  .mx-outer{padding:8px 8px 10px 4px;}
+  .mx-grid{gap:5px;}
+  .mx-quad{padding:6px 8px 5px;}
+  .mx-outer{padding:6px 6px 8px 2px;}
+  /* Hide subtitles in quadrants on mobile */
+  .qhd-name{display:none;}
+  .qhd-div{margin-bottom:4px;}
+  /* Smaller task chips */
+  .mx-task-item{
+    min-height:24px;
+    padding:3px 6px;
+    font-size:10px;
+    gap:4px;
+    border-radius:5px;
+  }
+  .mx-dot{width:4px;height:4px;}
+  /* Tighter quadrant header */
+  .qhd{margin-bottom:1px;}
+  .qhd-tag{font-size:var(--text-sm);}
+  .qhd-action{font-size:10px;}
 }
 
 
@@ -774,7 +789,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V1.0 · 2025.04.23</div>
+<div id="version-badge">V1.5 · 2026.04.23</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
