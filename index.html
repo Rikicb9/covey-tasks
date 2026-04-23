@@ -410,8 +410,32 @@ button{touch-action:manipulation;cursor:pointer;}
 .mx-unclass-chip:active{cursor:grabbing;}
 .mx-unclass-chip.dragging{opacity:.35;}
 .mx-unclass-drag-handle{
-  color:var(--s400);font-size:12px;flex-shrink:0;
+  color:var(--s400);font-size:14px;flex-shrink:0;
   line-height:1;letter-spacing:-1px;
+  /* Large touch target without affecting layout */
+  padding:10px 8px;margin:-10px -4px;
+  cursor:grab;touch-action:none; /* prevent scroll interference */
+  user-select:none;
+}
+.mx-unclass-drag-handle:active{cursor:grabbing;color:var(--s800);}
+/* Ghost element shown while touch-dragging */
+#touch-drag-ghost{
+  position:fixed;z-index:9999;pointer-events:none;
+  background:#fff;border:2px solid var(--a400);border-radius:8px;
+  padding:7px 12px;font-size:var(--text-sm);font-weight:500;
+  color:var(--s800);box-shadow:0 8px 24px rgba(15,23,42,.25);
+  white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;
+  opacity:.92;transform:scale(1.04);
+  font-family:var(--fn);
+}
+/* Quadrant drop highlight during touch drag */
+.mx-quad.touch-over{
+  outline:3px solid var(--a400);outline-offset:-3px;
+  background-color:rgba(79,70,229,.06);
+}
+#mx-unclassified-section.touch-over{
+  background:var(--s100);
+  outline:2px dashed var(--s400);outline-offset:-3px;
 }
 #mx-unclassified-empty{
   font-size:var(--text-sm);color:var(--s400);
@@ -1461,20 +1485,89 @@ let dragTaskId=null,dragSrcQ=null;
 function mkDragItem(t,q){
   // q=null means unclassified chip; q='q1'..'q4' means quadrant item
   if(!q){
-    // Unclassified chip — vertical list style
+    // Unclassified chip — vertical list style with touch drag
     const chip=document.createElement('div');
     chip.className='mx-unclass-chip';
     chip.draggable=true;
     chip.dataset.id=t.id;
     chip.innerHTML=`<span class="mx-unclass-drag-handle">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text)}</span>`;
-    chip.addEventListener('click',()=>openTaskDetail(t.id));
+
+    // Desktop click → open detail (only if not dragging)
+    let wasDragging=false;
+    chip.addEventListener('click',()=>{if(!wasDragging)openTaskDetail(t.id);wasDragging=false;});
+
+    // ── Desktop HTML5 drag ──
     chip.addEventListener('dragstart',e=>{
-      dragTaskId=t.id;dragSrcQ=null;
+      dragTaskId=t.id;dragSrcQ=null;wasDragging=true;
       chip.classList.add('dragging');
       e.dataTransfer.effectAllowed='move';
       e.dataTransfer.setData('text/plain',String(t.id));
     });
     chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
+
+    // ── Touch drag: starts immediately on handle touchstart ──
+    const handle=chip.querySelector('.mx-unclass-drag-handle');
+    handle.addEventListener('touchstart',e=>{
+      e.preventDefault(); // prevent scroll + remove 300ms delay
+      wasDragging=true;
+      dragTaskId=t.id;dragSrcQ=null;
+      chip.classList.add('dragging');
+
+      // Create ghost
+      const ghost=document.createElement('div');
+      ghost.id='touch-drag-ghost';
+      ghost.textContent=t.text;
+      document.body.appendChild(ghost);
+
+      const touch=e.touches[0];
+      ghost.style.left=(touch.clientX+12)+'px';
+      ghost.style.top=(touch.clientY-20)+'px';
+
+      function onMove(e){
+        e.preventDefault();
+        const tc=e.touches[0];
+        ghost.style.left=(tc.clientX+12)+'px';
+        ghost.style.top=(tc.clientY-20)+'px';
+
+        // Highlight drop targets
+        document.querySelectorAll('.mx-quad,.mx-quad.touch-over').forEach(q=>q.classList.remove('touch-over'));
+        document.getElementById('mx-unclassified-section').classList.remove('touch-over');
+        const el=document.elementFromPoint(tc.clientX,tc.clientY);
+        const quad=el?.closest('.mx-quad');
+        const uSection=el?.closest('#mx-unclassified-section');
+        if(quad)quad.classList.add('touch-over');
+        else if(uSection)uSection.classList.add('touch-over');
+      }
+
+      function onEnd(e){
+        // Remove ghost
+        ghost.remove();
+        chip.classList.remove('dragging');
+        document.querySelectorAll('.mx-quad').forEach(q=>q.classList.remove('touch-over'));
+        document.getElementById('mx-unclassified-section').classList.remove('touch-over');
+
+        // Determine drop target
+        const tc=e.changedTouches[0];
+        const el=document.elementFromPoint(tc.clientX,tc.clientY);
+        const quad=el?.closest('.mx-quad');
+        const uSection=el?.closest('#mx-unclassified-section');
+        if(quad){
+          applyDrop(quad.dataset.q);
+        } else if(uSection){
+          // already unclassified, no-op
+          dragTaskId=null;dragSrcQ=null;
+        } else {
+          dragTaskId=null;dragSrcQ=null;
+        }
+
+        handle.removeEventListener('touchmove',onMove);
+        handle.removeEventListener('touchend',onEnd);
+      }
+
+      handle.addEventListener('touchmove',onMove,{passive:false});
+      handle.addEventListener('touchend',onEnd,{once:true});
+    },{passive:false});
+
     return chip;
   } else {
     // Quadrant task item — store id for click handler
