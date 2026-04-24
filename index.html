@@ -101,7 +101,7 @@ button{touch-action:manipulation;cursor:pointer;}
 #task-input{flex:1;border:none;background:transparent;font-size:max(16px,var(--text-md));color:#000;outline:none;padding:9px 0;font-family:var(--fn);}
 #task-input::placeholder{color:#888;}
 #add-btn{background:var(--a500);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:var(--text-sm);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .15s;font-family:var(--fn);font-weight:600;touch-action:manipulation;}
-#add-bar:focus-within #add-btn{opacity:1;pointer-events:auto;}
+#add-btn.visible{opacity:1;pointer-events:auto;}
 #q-panel{margin:0 14px 4px;background:#fff;border:1.5px solid var(--a400);border-radius:10px;padding:13px 14px;flex-shrink:0;display:none;animation:qin .2s ease;box-shadow:0 2px 12px rgba(79,70,229,.1);}
 #q-panel.show{display:block;}
 @keyframes qin{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
@@ -816,7 +816,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V1.7 · 2026.04.23</div>
+<div id="version-badge">V1.8 · 2026.04.23</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
@@ -1299,7 +1299,8 @@ function setAuthMode(mode){
 document.getElementById('btn-signin').addEventListener('click',()=>setAuthMode('signin'));
 document.getElementById('btn-signup').addEventListener('click',()=>setAuthMode('signup'));
 document.getElementById('auth-password').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('auth-submit').click();});
-document.getElementById('auth-submit').addEventListener('click',async()=>{
+document.getElementById('auth-submit').addEventListener('pointerdown',async(ev)=>{
+  ev.preventDefault(); // prevent blur stealing focus on iOS
   const email=document.getElementById('auth-email').value.trim();
   const password=document.getElementById('auth-password').value;
   const isSignIn=document.getElementById('btn-signin').classList.contains('active');
@@ -1866,8 +1867,49 @@ function rQ(){
 }
 document.getElementById('q-skip').addEventListener('click',()=>{const f=S.qf;if(!f.pt)return;gl().tasks.unshift({id:f.pt.id,text:f.pt.text,done:false,star:false,q:null,subs:[]});closeQ();save();render();rMatrix();});
 function closeQ(){document.getElementById('q-panel').classList.remove('show');S.qf={ans:[null,null,null,null],cur:0,pt:null};}
-document.getElementById('task-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){startQ(e.target.value.trim());e.target.value='';}});
-document.getElementById('add-btn').addEventListener('click',()=>{const i=document.getElementById('task-input');if(i.value.trim()){startQ(i.value.trim());i.value='';}i.focus();});
+// ── TASK INPUT + ADD BUTTON ──
+// On iOS, blur fires before click when tapping the button, hiding it via
+// pointer-events:none before the click registers. Fixes:
+// 1. Visibility controlled by JS (class) not :focus-within
+// 2. pointerdown used instead of click (fires before blur)
+// 3. Value captured on input event so it survives blur
+const taskInput=document.getElementById('task-input');
+const addBtn=document.getElementById('add-btn');
+let pendingTaskValue=''; // captured before blur
+
+function showAddBtn(show){
+  addBtn.classList.toggle('visible',show);
+}
+taskInput.addEventListener('input',e=>{
+  pendingTaskValue=e.target.value;
+  showAddBtn(!!e.target.value.trim());
+});
+taskInput.addEventListener('focus',()=>{
+  showAddBtn(!!taskInput.value.trim());
+});
+taskInput.addEventListener('blur',()=>{
+  // Delay hiding so pointerdown on button fires first
+  setTimeout(()=>{
+    if(document.activeElement!==taskInput)showAddBtn(false);
+  },200);
+});
+taskInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const v=taskInput.value.trim();
+    if(v){startQ(v);taskInput.value='';pendingTaskValue='';showAddBtn(false);}
+  }
+});
+// pointerdown fires before blur on iOS — captures the tap reliably
+addBtn.addEventListener('pointerdown',e=>{
+  e.preventDefault(); // prevent blur on input
+  const v=(pendingTaskValue||taskInput.value).trim();
+  if(v){startQ(v);taskInput.value='';pendingTaskValue='';showAddBtn(false);}
+});
+// Fallback click for devices that don't support pointerdown well
+addBtn.addEventListener('click',()=>{
+  const v=(pendingTaskValue||taskInput.value).trim();
+  if(v){startQ(v);taskInput.value='';pendingTaskValue='';showAddBtn(false);}
+});
 document.getElementById('tab-list').addEventListener('click',()=>{S.view='list';document.getElementById('view-list').style.display='flex';document.getElementById('view-matrix').classList.remove('show');document.getElementById('tab-list').classList.add('active');document.getElementById('tab-matrix').classList.remove('active');save();});
 document.getElementById('tab-matrix').addEventListener('click',()=>{S.view='matrix';document.getElementById('view-list').style.display='none';document.getElementById('view-matrix').classList.add('show');document.getElementById('tab-list').classList.remove('active');document.getElementById('tab-matrix').classList.add('active');rMatrix();save();});
 document.querySelectorAll('.filter-chip').forEach(b=>b.addEventListener('click',()=>{S.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');save();render();}));
