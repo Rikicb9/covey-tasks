@@ -816,7 +816,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V1.8 · 2026.04.23</div>
+<div id="version-badge">V2.0 · 2026.04.23</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
@@ -1102,7 +1102,7 @@ const QS=[
   }
 ];
 const QMAP={q1:'Q1',q2:'Q2',q3:'Q3',q4:'Q4'};
-const DEFAULT_STATE={al:0,filter:'all',showDone:false,view:'list',lists:[{id:0,name:'Mi día',icon:'☀️',tasks:[]},{id:1,name:'Importante',icon:'⭐',tasks:[]}],nid:1};
+const DEFAULT_STATE={al:0,filter:'all',showDone:false,view:'list',lists:[{id:0,name:'Mi día',icon:'☀️',tasks:[]}],nid:1};
 
 // ── PERSISTENCE: localStorage (cache) + Supabase (cloud) ──
 function stateFromRaw(saved){
@@ -1110,8 +1110,8 @@ function stateFromRaw(saved){
   saved.qf={ans:[null,null,null,null],cur:0,pt:null};
   // Migration: remove Planeado and Tareas if they still exist from old data
   if(saved.lists){
-    saved.lists=saved.lists.filter(l=>l.name!=='Planeado'&&l.name!=='Tareas');
-    // Ensure al index is valid after removal
+    // Remove legacy lists (Planeado, Tareas, Importante — now just a task property)
+    saved.lists=saved.lists.filter(l=>l.name!=='Planeado'&&l.name!=='Tareas'&&l.name!=='Importante');
     if(saved.al>=saved.lists.length)saved.al=0;
   }
   return saved;
@@ -1212,25 +1212,7 @@ function dueSort(tasks){
 }
 
 // ── SYNC STARRED TASKS TO "IMPORTANTE" LIST (index 1) ──
-function syncImportante(){
-  const importanteList=S.lists.find(l=>l.name==='Importante');
-  if(!importanteList)return;
-  // All starred tasks across all lists (except Importante itself)
-  const starred=S.lists
-    .filter(l=>l.name!=='Importante')
-    .flatMap(l=>l.tasks)
-    .filter(t=>t.star);
-  // Add starred tasks not yet in Importante (by id)
-  const existingIds=new Set(importanteList.tasks.map(t=>t.id));
-  starred.forEach(t=>{
-    if(!existingIds.has(t.id)){
-      // Store a reference (same id) — we'll resolve on render
-      importanteList.tasks.push(t);
-    }
-  });
-  // Remove tasks from Importante that are no longer starred
-  importanteList.tasks=importanteList.tasks.filter(t=>t.star);
-}
+// starred tasks are a property on each task — no separate list needed
 const cq=ans=>{let u=0,i=0;ans.forEach((ai,qi)=>{if(ai===null)return;const o=QS[qi].opts[ai];u+=o.u;i+=o.i;});return u>=2&&i>=2?'q1':u<2&&i>=2?'q2':u>=2&&i<2?'q3':'q4';};
 const now=()=>new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 
@@ -1487,7 +1469,7 @@ document.getElementById('td-due-date').addEventListener('change',e=>{if(detailTa
 document.getElementById('td-due-clear').addEventListener('click',()=>{if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.due=null;document.getElementById('td-due-date').value='';save();render();rMatrix();});
 document.getElementById('td-title').addEventListener('keydown',e=>{if(e.key==='Enter')e.target.blur();});
 document.getElementById('td-check-wrap').addEventListener('click',()=>{if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.done=!t.done;document.getElementById('td-check').className=t.done?'done':'';document.getElementById('td-title').className=t.done?'done':'';save();render();rMatrix();});
-document.getElementById('td-star').addEventListener('click',()=>{if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.star=!t.star;syncImportante();const star=document.getElementById('td-star');star.textContent=t.star?'★':'☆';star.className='td-star'+(t.star?' on':'');save();render();});
+document.getElementById('td-star').addEventListener('click',()=>{if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.star=!t.star;const star=document.getElementById('td-star');star.textContent=t.star?'★':'☆';star.className='td-star'+(t.star?' on':'');save();render();});
 document.getElementById('td-add-sub-in').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){if(detailTaskId===null)return;const t=findAnyTask(detailTaskId);if(!t)return;t.subs.push({id:S.nid++,text:e.target.value.trim(),done:false});e.target.value='';save();render();rMatrix();renderDetailSubs(t);}});
 // Notes autosave on change
 document.getElementById('td-notes').addEventListener('input',e=>{
@@ -1504,7 +1486,7 @@ function rSidebar(){
   const nav=document.getElementById('list-nav');nav.innerHTML='';
   S.lists.forEach((l,i)=>{
     const p=l.tasks.filter(t=>!t.done).length;
-    const isSystem=i<2; // Mi día and Importante are built-in
+    const isSystem=i<1; // only Mi día is built-in
     const el=document.createElement('div');
     el.className='list-item'+(i===S.al?' active':'');
     el.innerHTML=`<span>${l.icon}</span><span style="flex:1">${l.name}</span>`+
@@ -1564,7 +1546,18 @@ function rList(){
     });
     titleEl.addEventListener('blur',finish,{once:true});
   };
-  document.getElementById('list-date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});const all=ft(),active=all.filter(t=>!t.done),done=all.filter(t=>t.done);const ac=document.getElementById('active-tasks');ac.innerHTML='';active.forEach(t=>ac.appendChild(mkTask(t)));const cs=document.getElementById('comp-section'),ct=document.getElementById('comp-tasks');ct.innerHTML='';if(done.length){cs.style.display='block';document.getElementById('comp-cnt').textContent=`(${done.length})`;if(S.showDone){ct.classList.remove('hidden');document.getElementById('comp-arr').classList.add('open');done.forEach(t=>ct.appendChild(mkTask(t)));}else{ct.classList.add('hidden');document.getElementById('comp-arr').classList.remove('open');}}else cs.style.display='none';if(!active.length&&!done.length)ac.innerHTML='<div id="empty"><div class="ei">📋</div><div>Sin tareas. Añade una nueva.</div></div>';}
+  document.getElementById('list-date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});const all=ft(),done=all.filter(t=>t.done);
+  // Sort active tasks: starred first (by due date), then unstarred
+  const activeRaw=all.filter(t=>!t.done);
+  const starredSorted=activeRaw.filter(t=>t.star).sort((a,b)=>{
+    if(!a.due&&!b.due)return 0;
+    if(!a.due)return 1;
+    if(!b.due)return -1;
+    return new Date(a.due)-new Date(b.due);
+  });
+  const unstarred=activeRaw.filter(t=>!t.star);
+  const active=[...starredSorted,...unstarred];
+  const ac=document.getElementById('active-tasks');ac.innerHTML='';active.forEach(t=>ac.appendChild(mkTask(t)));const cs=document.getElementById('comp-section'),ct=document.getElementById('comp-tasks');ct.innerHTML='';if(done.length){cs.style.display='block';document.getElementById('comp-cnt').textContent=`(${done.length})`;if(S.showDone){ct.classList.remove('hidden');document.getElementById('comp-arr').classList.add('open');done.forEach(t=>ct.appendChild(mkTask(t)));}else{ct.classList.add('hidden');document.getElementById('comp-arr').classList.remove('open');}}else cs.style.display='none';if(!active.length&&!done.length)ac.innerHTML='<div id="empty"><div class="ei">📋</div><div>Sin tareas. Añade una nueva.</div></div>';}
 function mkTask(t){const div=document.createElement('div');div.className='task-row fi';const hs=t.subs&&t.subs.length>0,ds=hs?t.subs.filter(s=>s.done).length:0,ie=S.exp.has(t.id);const qb=t.q?`<span class="q-badge ${t.q}">${QMAP[t.q]}</span>`:'';const db=dueBadge(t.due);div.innerHTML=`<div class="task-main"><div class="check-wrap" data-a="tog" data-id="${t.id}"><div class="check-circle${t.done?' done':''}"></div></div><div class="task-text-wrap"><span class="task-text${t.done?' done':''}" data-a="txt" data-id="${t.id}">${esc(t.text)}</span></div><div class="task-meta">${qb}${hs?`<span class="sub-pill">${ds}/${t.subs.length}</span>`:''}<button class="star-btn${t.star?' on':''}" data-a="star" data-id="${t.id}">${t.star?'★':'☆'}</button><button class="del-btn" data-a="del" data-id="${t.id}">✕</button></div></div><div class="sub-panel${ie?' open':''}">${(t.subs||[]).map(s=>`<div class="sub-item"><div class="sub-chk${s.done?' done':''}" data-a="tsub" data-tid="${t.id}" data-sid="${s.id}"></div><span class="sub-txt${s.done?' done':''}" data-sid="${s.id}" data-tid="${t.id}">${esc(s.text)}</span><button class="del-sub" data-a="dsub" data-tid="${t.id}" data-sid="${s.id}">✕</button></div>`).join('')}<div class="add-sub-row"><span style="color:#aaa;font-size:13px;">+</span><input class="add-sub-in" placeholder="Añadir subtarea..." data-tid="${t.id}" maxlength="500"/></div><span class="notes-label">📝 Notas</span><textarea class="task-notes" data-tid="${t.id}" placeholder="Añade notas, contexto o información relevante..." maxlength="5000">${esc(t.notes||'')}</textarea></div>`;
 let ct2=null;div.querySelector('.task-main').addEventListener('click',e=>{
   if(e.target.closest('[data-a="tog"]')||e.target.closest('[data-a="star"]')||e.target.closest('[data-a="del"]'))return;
@@ -1619,7 +1612,7 @@ div.querySelector('.task-notes').addEventListener('input',e=>{
 div.querySelector('.task-notes').addEventListener('click',e=>e.stopPropagation());
 return div;}
 function editTask(id,el){const t=ft2(id);if(!t||!el)return;const inp=document.createElement('input');inp.className='task-edit-input';inp.value=t.text;inp.maxLength=120;el.parentNode.replaceChild(inp,el);inp.focus();inp.select();const sv=()=>{const v=inp.value.trim();if(v)t.text=v;save();render();rMatrix();};inp.addEventListener('keydown',e=>{if(e.key==='Enter')sv();if(e.key==='Escape')render();});inp.addEventListener('blur',sv);}
-function hAct(e){const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,id=parseInt(b.dataset.id);if(a==='tog'){e.stopPropagation();const t=ft2(id);if(t){t.done=!t.done;save();render();rMatrix();}}else if(a==='star'){e.stopPropagation();const t=ft2(id);if(t){t.star=!t.star;syncImportante();save();render();}}else if(a==='del'){e.stopPropagation();gl().tasks=gl().tasks.filter(t=>t.id!==id);S.exp.delete(id);save();render();rMatrix();}else if(a==='tsub'){e.stopPropagation();const t=ft2(parseInt(b.dataset.tid));if(t){const s=t.subs.find(s=>s.id===parseInt(b.dataset.sid));if(s){s.done=!s.done;save();render();rMatrix();}}}else if(a==='dsub'){e.stopPropagation();const t=ft2(parseInt(b.dataset.tid));if(t){t.subs=t.subs.filter(s=>s.id!==parseInt(b.dataset.sid));save();render();rMatrix();}}}
+function hAct(e){const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,id=parseInt(b.dataset.id);if(a==='tog'){e.stopPropagation();const t=ft2(id);if(t){t.done=!t.done;save();render();rMatrix();}}else if(a==='star'){e.stopPropagation();const t=ft2(id);if(t){t.star=!t.star;save();render();}}else if(a==='del'){e.stopPropagation();gl().tasks=gl().tasks.filter(t=>t.id!==id);S.exp.delete(id);save();render();rMatrix();}else if(a==='tsub'){e.stopPropagation();const t=ft2(parseInt(b.dataset.tid));if(t){const s=t.subs.find(s=>s.id===parseInt(b.dataset.sid));if(s){s.done=!s.done;save();render();rMatrix();}}}else if(a==='dsub'){e.stopPropagation();const t=ft2(parseInt(b.dataset.tid));if(t){t.subs=t.subs.filter(s=>s.id!==parseInt(b.dataset.sid));save();render();rMatrix();}}}
 let pendingDeleteId=null;
 let pendingDeleteListIdx=null;
 
@@ -2049,7 +2042,7 @@ document.getElementById('review-body').addEventListener('click',e=>{
   } else if(action==='star'){
     const t=findAnyTask(id);
     if(!t)return;
-    t.star=!t.star;syncImportante();save();render();
+    t.star=!t.star;save();render();
     btn.style.color=t.star?'#F59E0B':'var(--s300)';
     btn.textContent=t.star?'★':'☆';
     btn.dataset.starred=t.star?'1':'0';
