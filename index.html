@@ -264,9 +264,7 @@ button{touch-action:manipulation;cursor:pointer;}
 
 /* ── MATRIX LAYOUT ── */
 .mx-outer{
-  /* Fixed height ~55% of available space — leaves room for unclassified below */
-  height:55%;
-  flex-shrink:0;
+  flex:2;min-height:0;
   display:flex;overflow:hidden;
   padding:8px 10px 8px 4px;
   gap:6px;
@@ -415,7 +413,7 @@ button{touch-action:manipulation;cursor:pointer;}
 .mx-quad.q4 .mx-empty-lbl{color:#334155;}
 /* ── UNCLASSIFIED TASKS SECTION ── */
 #mx-unclassified-section{
-  flex:1;
+  flex:1;  /* 1/3 of remaining space */
   display:flex;flex-direction:column;
   border-top:2px dashed var(--s300);
   background:#fff;
@@ -863,7 +861,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V2.2 · 2026.04.23</div>
+<div id="version-badge">V2.3 · 2026.04.29</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
@@ -1863,7 +1861,7 @@ function mkDragItem(t,q){
   } else {
     // Quadrant task item — store id for click handler
     const d=document.createElement('div');d.className='mx-task-item';d.draggable=true;d.dataset.taskId=t.id;
-    d.innerHTML=`<div class="mx-dot"></div>${t.star?'<span class="mx-star">★</span>':''}<span class="mx-task-label">${esc(t.text)}</span><button class="mx-del" title="Eliminar">×</button>`;
+    d.innerHTML=`<div class="mx-dot"></div><span class="mx-task-label">${esc(t.text)}</span>${t.star?'<span class="mx-star">★</span>':''}<button class="mx-del" title="Eliminar">×</button>`;
     d.addEventListener('click',e=>{if(e.target.closest('.mx-del'))return;openTaskDetail(t.id);});
     d.addEventListener('dragstart',e=>{
       dragTaskId=t.id;dragSrcQ=q;
