@@ -493,6 +493,31 @@ button{touch-action:manipulation;cursor:pointer;}
   background:var(--s100);
   outline:2px dashed var(--s400);outline-offset:-3px;
 }
+/* Quick-add in unclassified section */
+#mx-quick-add{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 12px 8px;flex-shrink:0;
+  border-top:1px solid var(--s200);
+  background:#fff;
+}
+#mx-quick-add-input{
+  flex:1;border:none;outline:none;
+  font-size:max(16px,var(--text-sm));
+  font-family:var(--fn);color:#333;
+  background:transparent;
+  padding:4px 0;
+}
+#mx-quick-add-input::placeholder{color:#bbb;}
+#mx-quick-add-btn{
+  background:var(--a500);color:#fff;
+  border:none;border-radius:6px;
+  padding:5px 10px;font-size:var(--text-xs);
+  font-weight:600;font-family:var(--fn);
+  cursor:pointer;opacity:0;pointer-events:none;
+  transition:opacity .15s;touch-action:manipulation;
+  white-space:nowrap;flex-shrink:0;
+}
+#mx-quick-add-btn.visible{opacity:1;pointer-events:auto;}
 #mx-unclassified-empty{
   font-size:var(--text-sm);color:var(--s400);
   font-style:italic;padding:8px 0;
@@ -861,7 +886,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V2.4 · 2026.05.12</div>
+<div id="version-badge">V2.5 · 2026.05.12</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
@@ -934,6 +959,11 @@ button{touch-action:manipulation;cursor:pointer;}
             <span id="mx-unclassified-hint">Arrastra arriba para clasificar</span>
           </div>
           <div id="mx-unclassified-list"></div>
+          <div id="mx-quick-add">
+            <span style="color:var(--s400);font-size:14px;flex-shrink:0;">+</span>
+            <input id="mx-quick-add-input" placeholder="Nueva tarea sin clasificar..." maxlength="120"/>
+            <button id="mx-quick-add-btn">Añadir</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2021,6 +2051,32 @@ function initDropZones(){
     applyDrop(null); // always unclassify whatever lands here
   });
 }
+
+// ── MATRIX QUICK-ADD ──
+(function(){
+  const inp=document.getElementById('mx-quick-add-input');
+  const btn=document.getElementById('mx-quick-add-btn');
+  let pending='';
+
+  function showBtn(show){btn.classList.toggle('visible',show);}
+
+  function addUnclassified(){
+    const v=(pending||inp.value).trim();
+    if(!v)return;
+    gl().tasks.push({id:S.nid++,text:v,done:false,star:false,q:null,subs:[],notes:''});
+    inp.value='';pending='';showBtn(false);
+    save();render();rMatrix();
+    // keep focus so user can add more
+    inp.focus();
+  }
+
+  inp.addEventListener('input',e=>{pending=e.target.value;showBtn(!!e.target.value.trim());});
+  inp.addEventListener('focus',()=>showBtn(!!inp.value.trim()));
+  inp.addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==inp)showBtn(false);},200));
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')addUnclassified();});
+  btn.addEventListener('pointerdown',e=>{e.preventDefault();addUnclassified();});
+  btn.addEventListener('click',addUnclassified);
+})();
 
 function rMatrix(){
   const all=allTasks();
