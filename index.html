@@ -778,10 +778,12 @@ button{touch-action:manipulation;cursor:pointer;}
   .qhd{margin-bottom:1px;}
   .qhd-tag{font-size:var(--text-sm);}
   .qhd-action{font-size:10px;}
-  /* Version badge: fixed top-right inside the pill sidebar bar */
+  /* Version badge: top-right in the sidebar pill bar on mobile */
   #version-badge{
-    position:fixed;
-    top:0;right:8px;bottom:auto;left:auto;
+    top:0 !important;
+    right:8px !important;
+    bottom:auto !important;
+    left:auto !important;
     height:44px;
     display:flex;align-items:center;
     font-size:9px;
@@ -972,7 +974,7 @@ button{touch-action:manipulation;cursor:pointer;}
           </div>
         </div>
       </div>
-      <div id="version-badge">V2.6 · 2026.05.14</div>
+      <div id="version-badge">V2.7 · 2026.05.14</div>
     </div>
   </div>
 </div>
