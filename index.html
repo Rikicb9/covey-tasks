@@ -784,15 +784,20 @@ button{touch-action:manipulation;cursor:pointer;}
 
 /* ── VERSION BADGE ── */
 #version-badge{
-  position:fixed;bottom:8px;left:10px;
+  flex-shrink:0;
+  display:block;
+  text-align:right;
+  padding:3px 10px 4px;
   font-size:10px;font-family:var(--mono);
   color:var(--s400);
-  z-index:10;pointer-events:none;
+  background:#fff;
+  border-top:1px solid var(--s200);
   user-select:none;
   letter-spacing:.02em;
+  pointer-events:none;
 }
 @media(max-width:640px){
-  #version-badge{bottom:max(8px,env(safe-area-inset-bottom,8px));font-size:9px;}
+  #version-badge{font-size:9px;}
 }
 /* ── PULL TO REFRESH ── */
 #ptr-indicator{
@@ -886,7 +891,6 @@ button{touch-action:manipulation;cursor:pointer;}
 </head>
 <body>
 <div id="ptr-indicator">↻</div>
-<div id="version-badge">V2.5 · 2026.05.12</div>
 <div style="position:relative;">
 <div id="root">
   <div id="todo-panel">
@@ -966,6 +970,7 @@ button{touch-action:manipulation;cursor:pointer;}
           </div>
         </div>
       </div>
+      <div id="version-badge">V2.6 · 2026.05.14</div>
     </div>
   </div>
 </div>
