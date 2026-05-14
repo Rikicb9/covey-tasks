@@ -465,6 +465,17 @@ button{touch-action:manipulation;cursor:pointer;}
 .mx-unclass-chip:hover{border-color:var(--s400);box-shadow:0 2px 6px rgba(15,23,42,.08);}
 .mx-unclass-chip:active{cursor:grabbing;}
 .mx-unclass-chip.dragging{opacity:.35;}
+.mx-unclass-del{
+  background:none;border:none;cursor:pointer;
+  color:var(--s400);font-size:11px;
+  opacity:0;transition:opacity .15s,color .15s;
+  padding:0;width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;touch-action:manipulation;
+  border-radius:4px;
+}
+.mx-unclass-chip:hover .mx-unclass-del{opacity:1;}
+.mx-unclass-del:hover{color:var(--red);background:var(--redb);}
 .mx-unclass-drag-handle{
   color:var(--s400);font-size:14px;flex-shrink:0;
   line-height:1;letter-spacing:-1px;
@@ -974,7 +985,7 @@ button{touch-action:manipulation;cursor:pointer;}
           </div>
         </div>
       </div>
-      <div id="version-badge">V2.7 · 2026.05.14</div>
+      <div id="version-badge">V2.8 · 2026.05.14</div>
     </div>
   </div>
 </div>
@@ -1920,11 +1931,17 @@ function mkDragItem(t,q){
     chip.className='mx-unclass-chip';
     chip.draggable=true;
     chip.dataset.id=t.id;
-    chip.innerHTML=`<span class="mx-unclass-drag-handle">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text)}</span>`;
+    chip.innerHTML=`<span class="mx-unclass-drag-handle">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text)}</span><button class="mx-unclass-del" title="Eliminar">✕</button>`;
+
+    // Wire delete button
+    chip.querySelector('.mx-unclass-del').addEventListener('click',e=>{
+      e.stopPropagation();
+      showConfirm(t.id);
+    });
 
     // Desktop click → open detail (only if not dragging)
     let wasDragging=false;
-    chip.addEventListener('click',()=>{if(!wasDragging)openTaskDetail(t.id);wasDragging=false;});
+    chip.addEventListener('click',e=>{if(e.target.closest('.mx-unclass-del'))return;if(!wasDragging)openTaskDetail(t.id);wasDragging=false;});
 
     // ── Desktop HTML5 drag ──
     chip.addEventListener('dragstart',e=>{
