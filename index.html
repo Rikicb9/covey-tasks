@@ -632,13 +632,19 @@ button{touch-action:manipulation;cursor:pointer;}
 .td-sub-item{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dashed var(--s200);background:#fff;min-height:44px;}
 .td-sub-item.sub-dragging,.sub-item.sub-dragging{opacity:.45;background:var(--s50);}
 .sub-drag-handle{
-  color:var(--s300);cursor:grab;touch-action:none;user-select:none;
-  padding:10px 4px;margin:-10px 0 -10px -4px;
+  color:var(--s300);cursor:grab;
+  touch-action:none;          /* stop the browser scrolling on drag */
+  user-select:none;
+  -webkit-user-select:none;
+  padding:10px 6px;margin:-10px 0 -10px -6px;
   flex-shrink:0;font-size:13px;line-height:1;letter-spacing:-1px;
   transition:color .15s;
 }
 .sub-drag-handle:hover{color:var(--s500);}
-.sub-drag-handle:active{cursor:grabbing;}
+.sub-drag-handle:active{cursor:grabbing;color:var(--s800);}
+/* Subtask rows must be their own drag context, not the parent task row */
+.sub-item,.td-sub-item{position:relative;}
+.subs-list{display:flex;flex-direction:column;}
 .td-sub-item:last-of-type{border-bottom:none;}
 .td-sub-chk{width:32px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:transparent;border:none;touch-action:manipulation;}
 .td-sub-chk::before{content:'';width:14px;height:14px;border-radius:50%;border:1.5px solid var(--s300);display:block;transition:all .18s;background:#fff;}
@@ -1024,7 +1030,7 @@ button{touch-action:manipulation;cursor:pointer;}
           </div>
         </div>
       </div>
-      <div id="version-badge">V3.3 · 2026.05.20</div>
+      <div id="version-badge">V3.5 · 2026.05.20</div>
     </div>
   </div>
 </div>
@@ -1128,12 +1134,9 @@ const STORAGE_KEY='covey-tasks-v1';
 const SESSION_KEY='covey-session';
 
 // ── PREVIEW MODE ──
-// Skips the login screen so UI changes are visible immediately in the
-// artifact preview panel. Uses local-only storage (no cloud sync) while
-// enabled — authSession stays null, which every save/load function already
-// handles gracefully.
-// ⚠️ IMPORTANT: set this to false before copying the file to GitHub Pages —
-// real users must always go through authentication.
+// When true, skips the login screen and runs on local-only storage (no cloud
+// sync). Useful for previewing UI changes without authenticating.
+// Kept false so this file is always production-ready for GitHub Pages.
 const PREVIEW_MODE = false;
 
 // Auth state
@@ -1409,56 +1412,82 @@ function autoResize(el){
 }
 
 // ── SUBTASK DRAG-REORDER ──
-// Attaches pointer-based reordering to every [data-sub-row] element inside
-// `container`, using its `.sub-drag-handle` as the grab point. Works for
-// mouse AND touch via the unified Pointer Events API — no separate touch
-// handling needed. Rows are moved live in the DOM as you drag; on release,
-// the new order is read back from the DOM and passed to `onReorder`.
+// Same proven pattern as the matrix "Sin clasificar" section: HTML5 drag
+// events for desktop + native touch events for mobile. Each subtask row is
+// draggable via its `.sub-drag-handle`; rows reorder live in the DOM and the
+// resulting order is passed to `onReorder` on release.
+let subDragRow=null;
+
 function attachSubtaskReorder(container,onReorder){
-  container.querySelectorAll('.sub-drag-handle').forEach(handle=>{
-    const row=handle.closest('[data-sub-row]');
-    if(!row)return;
-    handle.addEventListener('pointerdown',e=>{
-      e.preventDefault();
-      // Capture must be set on the SAME element that listens for
-      // pointermove/pointerup — capturing on `row` (an ancestor) would
-      // retarget events there instead, and they'd never reach `handle`'s
-      // listeners since retargeted events don't traverse back down into
-      // descendants. That was the original bug.
-      handle.setPointerCapture(e.pointerId);
-      row.classList.add('sub-dragging');
-      const onMove=ev=>{
-        const y=ev.clientY;
-        const rows=[...container.querySelectorAll('[data-sub-row]')];
-        const others=rows.filter(r=>r!==row);
-        if(!others.length)return;
-        // Find the first row whose vertical midpoint is below the pointer —
-        // that's where the dragged row should be inserted.
-        const after=others.find(r=>{
-          const rect=r.getBoundingClientRect();
-          return y<rect.top+rect.height/2;
-        });
-        if(after){
-          container.insertBefore(row,after);
-        } else {
-          // Past the last row: insert AFTER the last subtask row, never
-          // appendChild() — the container may hold other elements (add-row,
-          // notes) that the dragged row must stay above.
-          const last=others[others.length-1];
-          last.after(row);
-        }
-      };
-      const onUp=ev=>{
-        handle.releasePointerCapture(e.pointerId);
-        row.classList.remove('sub-dragging');
-        handle.removeEventListener('pointermove',onMove);
-        handle.removeEventListener('pointerup',onUp);
-        const newIds=[...container.querySelectorAll('[data-sub-row]')].map(r=>parseInt(r.dataset.subId));
-        onReorder(newIds);
-      };
-      handle.addEventListener('pointermove',onMove);
-      handle.addEventListener('pointerup',onUp,{once:true});
+  const rows=[...container.querySelectorAll('[data-sub-row]')];
+
+  function commit(){
+    const newIds=[...container.querySelectorAll('[data-sub-row]')].map(r=>parseInt(r.dataset.subId));
+    onReorder(newIds);
+  }
+
+  // Move `row` to the correct slot based on pointer Y position
+  function placeRow(row,y){
+    const others=[...container.querySelectorAll('[data-sub-row]')].filter(r=>r!==row);
+    if(!others.length)return;
+    const after=others.find(r=>{
+      const rect=r.getBoundingClientRect();
+      return y<rect.top+rect.height/2;
     });
+    if(after)container.insertBefore(row,after);
+    else others[others.length-1].after(row);
+  }
+
+  rows.forEach(row=>{
+    const handle=row.querySelector('.sub-drag-handle');
+    if(!handle)return;
+
+    // ── DESKTOP: HTML5 drag ──
+    // draggable is set on the ROW, but only activated when the drag starts
+    // from the handle (mousedown on handle sets it, mouseup clears it).
+    handle.addEventListener('mousedown',()=>{row.draggable=true;});
+    handle.addEventListener('mouseup',()=>{row.draggable=false;});
+
+    row.addEventListener('dragstart',e=>{
+      subDragRow=row;
+      row.classList.add('sub-dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain','sub');
+      e.stopPropagation(); // don't trigger the parent task-row drag
+    });
+    row.addEventListener('dragend',()=>{
+      row.classList.remove('sub-dragging');
+      row.draggable=false;
+      if(subDragRow===row){subDragRow=null;commit();}
+    });
+    row.addEventListener('dragover',e=>{
+      if(!subDragRow)return;
+      e.preventDefault();
+      e.stopPropagation();
+      placeRow(subDragRow,e.clientY);
+    });
+
+    // ── MOBILE: native touch, starts instantly on handle ──
+    handle.addEventListener('touchstart',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      subDragRow=row;
+      row.classList.add('sub-dragging');
+      if(navigator.vibrate)navigator.vibrate(12);
+
+      function onMove(ev){
+        ev.preventDefault();
+        placeRow(row,ev.touches[0].clientY);
+      }
+      function onEnd(){
+        row.classList.remove('sub-dragging');
+        subDragRow=null;
+        handle.removeEventListener('touchmove',onMove);
+        commit();
+      }
+      handle.addEventListener('touchmove',onMove,{passive:false});
+      handle.addEventListener('touchend',onEnd,{once:true});
+    },{passive:false});
   });
 }
 // Reorders a subs array in place to match an ordered list of ids
