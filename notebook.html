@@ -12,6 +12,10 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.2.0 (2026-10-21): part (c) — search (all notes or this folder, #tag
+  filter, accent-insensitive, partial words), "Tareas" link in the list header on
+  mobile, quick capture reuses an empty note instead of piling up blank ones,
+  ?new=1 kept in the URL so it can be saved as a home-screen shortcut.
   Notebook v0.1.0 (2026-10-21): part (b) — folders (2 levels) + Inbox, notes, tags,
   Markdown editor with preview, version-checked autosave, honest save status,
   offline drafts, conflict view (keep both), history + restore, move notes
@@ -67,6 +71,13 @@ input,textarea,select{font:inherit;color:inherit}
 .iconbtn:hover{background:var(--s100);color:var(--s900)}
 .newbtn{background:var(--a500);color:#fff;border:0;border-radius:8px;padding:0 14px;min-height:40px;font-weight:600}
 .newbtn:hover{background:var(--a600)}
+.sbar{display:flex;gap:6px;padding:0 12px 8px}
+#q{flex:1;min-width:0;min-height:40px;border:1px solid var(--s200);border-radius:8px;padding:0 10px;background:var(--s50);font-size:15px;outline:0}
+#q:focus{border-color:var(--a400);background:#fff}
+.scope{border:1px solid var(--s200);background:#fff;border-radius:8px;padding:0 10px;min-height:40px;font-size:13px;color:var(--s800);white-space:nowrap}
+.scope.on{background:var(--a50);border-color:var(--a400);color:var(--a600)}
+#notes mark{background:#FEF08A;color:inherit;border-radius:2px;padding:0 1px}
+.tasks{color:var(--s500);text-decoration:none;font-size:13px;font-weight:500;padding:0 6px;min-height:var(--touch);display:none;align-items:center}
 #notes{list-style:none;padding:0 8px 16px;overflow:auto;flex:1}
 #notes li{padding:10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
 #notes li:hover{background:var(--s50)}
@@ -142,6 +153,7 @@ input,textarea,select{font:inherit;color:inherit}
   #side,#listp,#edp{display:none}
   body[data-v="folders"] #side,body[data-v="list"] #listp,body[data-v="note"] #edp{display:flex}
   .back{display:inline-block}
+  .tasks{display:inline-flex}
   .etool{flex-wrap:nowrap;gap:2px;padding:6px 8px}
   .tbtn{min-height:var(--touch);min-width:var(--touch);padding:0 8px}
   .tbtn .ic{display:inline}.tbtn .lb{display:none}
@@ -155,7 +167,7 @@ input,textarea,select{font:inherit;color:inherit}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver">Notebook v0.1.0 · 2026.10.21</div>
+    <div class="ver">Notebook v0.2.0 · 2026.10.21</div>
   </aside>
 
   <section id="listp">
@@ -163,7 +175,12 @@ input,textarea,select{font:inherit;color:inherit}
       <button class="iconbtn back" id="toFolders" aria-label="Carpetas">☰</button>
       <h2 id="ltitle">Inbox</h2>
       <span class="cnt" id="lcount"></span>
+      <a class="tasks" href="./index.html" title="Ir a Covey Tasks">✓ Tareas</a>
       <button class="newbtn" id="newNote">+ Nota</button>
+    </div>
+    <div class="sbar">
+      <input id="q" type="search" placeholder="Buscar… (palabras o #etiqueta)" autocomplete="off" enterkeyhint="search"/>
+      <button class="scope on" id="scope" title="Dónde buscar">Todo</button>
     </div>
     <ul id="notes"></ul>
   </section>
@@ -217,6 +234,7 @@ let notes=[];                   // {id,folder_id,title,body,tags,version,updated
 let curFolder=INBOX;            // folder id | INBOX | 'tag:<name>'
 let cur=null;                   // open note (copy)
 let saveTimer=null, inflight=false, preview=false;
+let query='', scopeAll=true, searchLogTimer=null; // search state
 
 // ── AUTH (shared with Covey; re-read storage first so two tabs don't fight over refresh) ──
 function readSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY));}catch(e){return null;}}
@@ -340,25 +358,76 @@ function folderRow(id,label,count,sub,f){
   return row;
 }
 
+// ── SEARCH (client-side: all notes are already loaded; accent-insensitive, partial words) ──
+const fold=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function parseQuery(q){
+  const toks=q.trim().split(/\s+/).filter(Boolean);
+  return {tags:toks.filter(t=>t.startsWith('#')&&t.length>1).map(t=>fold(t.slice(1))),
+          terms:toks.filter(t=>!t.startsWith('#')).map(fold)};
+}
+function searchNotes(){
+  const {tags,terms}=parseQuery(query);
+  const base=scopeAll?notes:folderView();
+  const out=[];
+  base.forEach(n=>{
+    const d=getDraft(n.id),body=d?d.body:n.body,title=titleOf(body),ntags=(n.tags||[]).map(fold);
+    if(!tags.every(t=>ntags.some(x=>x.startsWith(t))))return;
+    const ft=fold(title),fb=fold(body),fg=ntags.join(' ');
+    let score=0;
+    for(const t of terms){
+      const s=(ft.includes(t)?3:0)+(fg.includes(t)?2:0)+(fb.includes(t)?1:0);
+      if(!s)return; score+=s;
+    }
+    out.push({n,score});
+  });
+  return out.sort((a,b)=>b.score-a.score||new Date(b.n.updated_at)-new Date(a.n.updated_at)).map(x=>x.n);
+}
+// snippet around the first match, built with text nodes (no HTML injection)
+function snippet(body,terms){
+  const lines=body.split('\n').filter(l=>l.trim());const rest=lines.slice(1).join(' · ');
+  const f=fold(rest);let at=-1,len=0;
+  for(const t of terms){const i=f.indexOf(t);if(i>=0&&(at<0||i<at)){at=i;len=t.length;}}
+  const frag=document.createDocumentFragment();
+  if(at<0){frag.append(rest.slice(0,90)||' ');return frag;}
+  const start=Math.max(0,at-35);
+  frag.append((start?'…':'')+rest.slice(start,at),el('mark',{},rest.slice(at,at+len)),rest.slice(at+len,at+len+60));
+  return frag;
+}
+function setQuery(q){
+  query=q;renderList();
+  clearTimeout(searchLogTimer);
+  if(q.trim())searchLogTimer=setTimeout(()=>{const p=parseQuery(q);
+    track('search_performed',{terms:p.terms.length,tag_filters:p.tags.length,scope:scopeAll?'all':'folder',results:searchNotes().length});},1200);
+}
+
 // ── RENDER: note list ──
-function listedNotes(){
+function folderView(){
   if(curFolder.startsWith('tag:')){const tg=curFolder.slice(4);return notes.filter(n=>(n.tags||[]).includes(tg));}
   return notesIn(curFolder);
 }
+function listedNotes(){
+  if(query.trim())return searchNotes();
+  return folderView().sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+}
 function renderList(){
   const ul=$('notes');ul.innerHTML='';
-  const list=listedNotes().sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
-  $('ltitle').textContent=curFolder.startsWith('tag:')?'#'+curFolder.slice(4):folderName(curFolder);
+  const searching=!!query.trim();
+  const list=listedNotes();
+  const where=curFolder.startsWith('tag:')?'#'+curFolder.slice(4):folderName(curFolder);
+  $('ltitle').textContent=searching?'Resultados':where;
+  $('scope').textContent=scopeAll?'Todo':'Solo '+where;
+  $('scope').classList.toggle('on',scopeAll);
   $('lcount').textContent=list.length+(list.length===1?' nota':' notas');
-  if(!list.length){ul.append(el('li',{class:'empty',style:'cursor:default'},'Sin notas aquí. Pulsa “+ Nota”.'));return;}
-  list.forEach(n=>{
+  if(!list.length){ul.append(el('li',{class:'empty',style:'cursor:default'},searching?'Sin resultados. Prueba con otra palabra o busca en “Todo”.':'Sin notas aquí. Pulsa “+ Nota”.'));return;}
+  const terms=searching?parseQuery(query).terms:[];
+  list.forEach((n,rank)=>{
     const d=getDraft(n.id);
     const body=d?d.body:n.body;
-    const preview=body.split('\n').filter(l=>l.trim()).slice(1).join(' · ').slice(0,90);
-    const li=el('li',{class:cur&&cur.id===n.id?'on':'',draggable:'true',onclick:()=>openNote(n.id)},
+    const where=searching&&scopeAll?' · '+folderName(n.folder_id||INBOX):'';
+    const li=el('li',{class:cur&&cur.id===n.id?'on':'',draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);}},
       el('div',{class:'t'},titleOf(body)||'Sin título'),
-      el('div',{class:'p'},preview||' '),
-      el('div',{class:'m'},fmtDate(n.updated_at)+(d?' · sin sincronizar':'')+((n.tags||[]).length?' · #'+n.tags.join(' #'):'')));
+      el('div',{class:'p'},snippet(body,terms)),
+      el('div',{class:'m'},fmtDate(n.updated_at)+where+(d?' · sin sincronizar':'')+((n.tags||[]).length?' · #'+n.tags.join(' #'):'')));
     li.ondragstart=e=>{e.dataTransfer.setData('text/note-id',n.id);e.dataTransfer.effectAllowed='move';};
     ul.append(li);
   });
@@ -446,7 +515,7 @@ async function poll(){
 
 // ── NAVIGATION ──
 function openFolder(id){
-  curFolder=id;renderTree();renderList();
+  curFolder=id;if(query){query='';$('q').value='';}renderTree();renderList();
   if(isMobile())view('list');
 }
 function openNote(id){
@@ -466,6 +535,9 @@ function openNote(id){
 async function newNote(){
   const folder_id=curFolder===INBOX||curFolder.startsWith('tag:')?null:curFolder;
   const tags=curFolder.startsWith('tag:')?[curFolder.slice(4)]:[];
+  if(query){query='';$('q').value='';renderList();}
+  const blank=notes.find(n=>!n.body.trim()&&!getDraft(n.id)&&(n.folder_id||null)===folder_id&&(n.tags||[]).join()===tags.join());
+  if(blank){openNote(blank.id);$('txt').focus();return blank;}
   try{
     const [row]=await api('notes',{method:'POST',headers:REP,body:JSON.stringify({folder_id,tags,title:'',body:''})});
     notes.unshift(row);openNote(row.id);$('txt').focus();
@@ -642,6 +714,11 @@ async function deleteFolder(f){
 // ── WIRING ──
 $('txt').addEventListener('input',onType);
 $('newNote').onclick=newNote;
+let qTimer=null;
+$('q').addEventListener('input',()=>{clearTimeout(qTimer);qTimer=setTimeout(()=>setQuery($('q').value),120);});
+$('q').addEventListener('keydown',e=>{if(e.key==='Escape'){$('q').value='';setQuery('');$('q').blur();}
+  if(e.key==='Enter'){const first=listedNotes()[0];if(first){track('search_result_opened',{result_rank:1});openNote(first.id);}}});
+$('scope').onclick=()=>{scopeAll=!scopeAll;renderList();};
 $('bPrev').onclick=()=>{preview=!preview;renderEditor();};
 $('bHist').onclick=showHistory;
 $('bDel').onclick=deleteNote;
@@ -656,6 +733,7 @@ window.addEventListener('offline',()=>setStatus('offline'));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')poll();else if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}});
 window.addEventListener('beforeunload',e=>{if(cur&&getDraft(cur.id)&&navigator.onLine&&(saveTimer||inflight)){e.preventDefault();e.returnValue='';}});
 document.addEventListener('keydown',e=>{
+  if(e.key==='/'&&!['TEXTAREA','INPUT'].includes(document.activeElement.tagName)){e.preventDefault();if(isMobile())view('list');$('q').focus();}
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}save();}
 });
 
@@ -670,8 +748,8 @@ document.addEventListener('keydown',e=>{
   try{
     await loadAll();
     renderAll();
-    if(quick){view('note');await newNote();history.replaceState(null,'',location.pathname);}
-    else if(!isMobile()&&notesIn(INBOX)[0])openNote(listedNotes().sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at))[0].id);
+    if(quick){view('note');await newNote();}
+    else if(!isMobile()&&listedNotes()[0])openNote(listedNotes()[0].id);
     else view('list');
     track('app_open_to_editable',{latency_ms:Math.round(performance.now()-T0),quick});
   }catch(e){
