@@ -12,6 +12,14 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.4.0 (2026-10-21): "⋯" menu on every note card (move, duplicate, delete);
+  clearer nesting (collapsible tree with guide lines, parent counts include subfolders,
+  breadcrumb, subfolders listed at the top of a folder); desktop panes resizable by
+  dragging (or arrow keys), double-click resets, remembered per device; search moved to
+  the sidebar under Inbox on desktop (stays above the list on mobile).
+  Notebook v0.3.1 (2026-10-21): fix "Cannot read properties of null (reading 'style')"
+  when the page opens without a Covey login (or the session expired): the sign-in
+  message no longer wipes the page, so later resize/keyboard events find their elements.
   Notebook v0.3.0 (2026-10-21): rich-text editor (WYSIWYG) replaces Markdown + preview.
   Toolbar: bold, italic, underline, strikethrough, text color, highlight (fixed
   accessible palettes), link (dialog + "Abrir enlace" chip), heading, bullet /
@@ -47,7 +55,40 @@ html,body{height:100%}
 body{font-family:var(--fn);font-size:15px;color:var(--s900);background:var(--s50);-webkit-text-size-adjust:100%}
 button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 input,textarea,select{font:inherit;color:inherit}
-#app{display:grid;grid-template-columns:240px 300px 1fr;height:100dvh;overflow:hidden}
+#app[hidden]{display:none}
+#app{--w1:240px;--w2:300px;display:grid;grid-template-columns:var(--w1) var(--w2) 1fr;height:100dvh;overflow:hidden;position:relative}
+/* resize handles (desktop) */
+.rz{position:absolute;top:0;bottom:0;width:10px;margin-left:-5px;cursor:col-resize;z-index:6;touch-action:none;outline:0}
+.rz::after{content:'';position:absolute;left:4px;top:0;bottom:0;width:2px;background:transparent;transition:background .15s}
+.rz:hover::after,.rz:focus-visible::after,.rz.drag::after{background:var(--a400)}
+#rz1{left:var(--w1)}#rz2{left:calc(var(--w1) + var(--w2))}
+body.resizing{cursor:col-resize;user-select:none}
+/* tree nesting */
+.frow .chev{width:22px;height:28px;border:0;background:none;color:var(--s400);font-size:11px;flex-shrink:0;border-radius:4px;padding:0}
+.frow .chev:hover{color:#fff;background:var(--s800)}
+.frow .chev.nochev{visibility:hidden}
+.kids{margin-left:19px;border-left:1px solid var(--s800);padding-left:4px}
+.kids .frow{padding-left:6px}
+/* search in sidebar (desktop) */
+#side .sbar{padding:6px 2px 4px}
+#side #q{background:var(--s800);border-color:var(--s800);color:#fff}
+#side #q::placeholder{color:var(--s400)}
+#side #q:focus{border-color:var(--a400);background:var(--s800)}
+#side .scope{background:var(--s800);border-color:var(--s800);color:var(--s300)}
+#side .scope.on{background:var(--a500);border-color:var(--a500);color:#fff}
+/* breadcrumb + subfolder rows in the list */
+.crumb{font-size:12px;color:var(--s500);padding:0 12px 4px;display:flex;gap:4px;flex-wrap:wrap}
+.crumb a{color:var(--s500);text-decoration:none;cursor:pointer}
+.crumb a:hover{color:var(--a500);text-decoration:underline}
+#notes li.sf{display:flex;align-items:center;gap:8px;background:var(--s50);border:1px dashed var(--s200);margin-bottom:4px}
+#notes li.sf .t{flex:1}
+#notes li.sf .ct{font-size:12px;color:var(--s500)}
+/* note card menu */
+#notes li.nc{position:relative;padding-right:44px}
+.nmenu{position:absolute;right:4px;top:6px;width:36px;height:36px;border:0;background:none;border-radius:8px;color:var(--s500);font-size:18px;opacity:0;transition:opacity .1s}
+#notes li.nc:hover .nmenu,#notes li.nc.on .nmenu,.nmenu:focus-visible{opacity:1}
+.nmenu:hover{background:var(--s100);color:var(--s900)}
+@media (hover:none){.nmenu{opacity:1}}
 
 /* ── Sidebar ── */
 #side{background:var(--s900);color:#E2E8F0;display:flex;flex-direction:column;overflow:hidden;padding-top:env(safe-area-inset-top)}
@@ -64,7 +105,6 @@ input,textarea,select{font:inherit;color:inherit}
 .frow.on .ct{color:var(--a100)}
 .frow .mn{background:none;border:0;color:inherit;opacity:.6;width:32px;height:32px;border-radius:6px}
 .frow .mn:hover{opacity:1;background:rgba(255,255,255,.12)}
-.frow.sub{padding-left:26px}
 .sec{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--s400);padding:14px 8px 6px;display:flex;justify-content:space-between;align-items:center}
 .sec button{background:none;border:0;color:var(--s400);font-size:18px;width:32px;height:32px;border-radius:6px}
 .sec button:hover{color:#fff;background:var(--s800)}
@@ -182,6 +222,7 @@ input,textarea,select{font:inherit;color:inherit}
 /* ── Mobile: one pane at a time ── */
 @media (max-width:820px){
   #app{grid-template-columns:1fr}
+  .rz{display:none}
   #side,#listp,#edp{display:none}
   body[data-v="folders"] #side,body[data-v="list"] #listp,body[data-v="note"] #edp{display:flex}
   .back{display:inline-block}
@@ -210,9 +251,10 @@ input,textarea,select{font:inherit;color:inherit}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver" id="ver">Notebook v0.3.0 · 2026.10.21</div>
+    <div class="ver" id="ver">Notebook v0.4.0 · 2026.10.21</div>
   </aside>
 
+  <div class="rz" id="rz1" role="separator" aria-orientation="vertical" aria-label="Ancho de carpetas" tabindex="0"></div>
   <section id="listp">
     <div class="lhead">
       <button class="iconbtn back" id="toFolders" aria-label="Carpetas">☰</button>
@@ -221,13 +263,15 @@ input,textarea,select{font:inherit;color:inherit}
       <a class="tasks" href="./index.html" title="Ir a Covey Tasks">✓ Tareas</a>
       <button class="newbtn" id="newNote">+ Nota</button>
     </div>
-    <div class="sbar">
-      <input id="q" type="search" placeholder="Buscar… (palabras o #etiqueta)" autocomplete="off" enterkeyhint="search"/>
+    <div class="crumb" id="crumb"></div>
+    <div class="sbar" id="sbar">
+      <input id="q" type="search" placeholder="Buscar…" title="Busca palabras o #etiqueta. Atajo: /" autocomplete="off" enterkeyhint="search"/>
       <button class="scope on" id="scope" title="Dónde buscar">Todo</button>
     </div>
     <ul id="notes"></ul>
   </section>
 
+  <div class="rz" id="rz2" role="separator" aria-orientation="vertical" aria-label="Ancho de la lista de notas" tabindex="0"></div>
   <section id="edp">
     <div class="etool">
       <button class="iconbtn back" id="toList" aria-label="Volver">←</button>
@@ -275,7 +319,7 @@ input,textarea,select{font:inherit;color:inherit}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.3.0';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.4.0';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -381,6 +425,7 @@ const tops=()=>folders.filter(f=>!f.parent_id).sort(bySort);
 const kids=id=>folders.filter(f=>f.parent_id===id).sort(bySort);
 function bySort(a,b){return a.sort_order-b.sort_order||a.name.localeCompare(b.name,'es');}
 const folderName=id=>id===INBOX||!id?'Inbox':(folders.find(f=>f.id===id)?.name||'Inbox');
+const folderPath=id=>{const f=folders.find(x=>x.id===id);if(!f)return 'Inbox';const p=f.parent_id&&folders.find(x=>x.id===f.parent_id);return p?p.name+' › '+f.name:f.name;};
 const notesIn=id=>notes.filter(n=>(n.folder_id||INBOX)===id);
 const allTags=()=>[...new Set(notes.flatMap(n=>n.tags||[]))].sort((a,b)=>a.localeCompare(b,'es'));
 // ── NOTE BODY: sanitized HTML (old notes may still be Markdown until edited) ──
@@ -446,14 +491,26 @@ const getDraft=id=>{try{return JSON.parse(localStorage.getItem(dkey(id)));}catch
 const dropDraft=id=>{try{localStorage.removeItem(dkey(id));}catch(e){}};
 
 // ── RENDER: sidebar ──
+let collapsed=new Set(); try{collapsed=new Set(JSON.parse(localStorage.getItem('nb-collapsed')||'[]'));}catch(e){}
+function toggleCollapse(id){collapsed.has(id)?collapsed.delete(id):collapsed.add(id);try{localStorage.setItem('nb-collapsed',JSON.stringify([...collapsed]));}catch(e){}renderTree();}
+const totalIn=id=>notesIn(id).length+kids(id).reduce((a,c)=>a+notesIn(c.id).length,0);
 function renderTree(){
-  const t=$('tree');t.innerHTML='';
+  const t=$('tree'),sb=$('sbar');
+  if(sb.parentNode===t)t.removeChild(sb);
+  t.innerHTML='';
   t.append(folderRow(INBOX,'📥 Inbox',notesIn(INBOX).length,false));
+  if(!isMobile())t.append(sb); // desktop: search sits under Inbox
   t.append(el('div',{class:'sec'},'Carpetas',el('button',{title:'Nueva carpeta',onclick:()=>createFolder(null)},'+')));
   if(!folders.length)t.append(el('div',{class:'empty',style:'color:var(--s400);padding:6px 8px;text-align:left;font-size:13px'},'Aún no hay carpetas.'));
   tops().forEach(f=>{
-    t.append(folderRow(f.id,'📁 '+f.name,notesIn(f.id).length,false,f));
-    kids(f.id).forEach(c=>t.append(folderRow(c.id,c.name,notesIn(c.id).length,true,c)));
+    const ks=kids(f.id),open=!collapsed.has(f.id)||ks.some(c=>c.id===curFolder);
+    const own=notesIn(f.id).length,tot=totalIn(f.id);
+    const row=folderRow(f.id,'📁 '+f.name,tot,false,f);
+    if(ks.length)row.querySelector('.ct').title=`${own} aquí · ${tot-own} en subcarpetas`;
+    const chev=el('button',{class:'chev'+(ks.length?'':' nochev'),title:open?'Plegar':'Desplegar','aria-expanded':String(open),'aria-label':(open?'Plegar ':'Desplegar ')+f.name,
+      onclick:e=>{e.stopPropagation();toggleCollapse(f.id);}},open?'▾':'▸');
+    row.prepend(chev);t.append(row);
+    if(ks.length&&open){const box=el('div',{class:'kids'});ks.forEach(c=>box.append(folderRow(c.id,'📂 '+c.name,notesIn(c.id).length,true,c)));t.append(box);}
   });
   const tags=allTags();
   if(tags.length){
@@ -464,7 +521,7 @@ function renderTree(){
   }
 }
 function folderRow(id,label,count,sub,f){
-  const row=el('div',{class:'frow'+(sub?' sub':'')+(curFolder===id?' on':''),onclick:()=>openFolder(id)},
+  const row=el('div',{class:'frow'+(curFolder===id?' on':''),onclick:()=>openFolder(id)},
     el('span',{class:'nm'},label),el('span',{class:'ct'},count||''));
   if(f)row.append(el('button',{class:'mn',title:'Opciones',onclick:e=>{e.stopPropagation();folderMenu(f);}},'⋯'));
   // drop target for notes (desktop drag-and-drop)
@@ -531,22 +588,62 @@ function renderList(){
   const list=listedNotes();
   const where=curFolder.startsWith('tag:')?'#'+curFolder.slice(4):folderName(curFolder);
   $('ltitle').textContent=searching?'Resultados':where;
-  $('scope').textContent=scopeAll?'Todo':'Solo '+where;
+  $('scope').textContent=scopeAll?'Todo':'Carpeta';
+  $('scope').title=scopeAll?'Buscando en todas las notas. Pulsa para buscar solo en “'+where+'”.':'Buscando solo en “'+where+'”. Pulsa para buscar en todo.';
+  renderCrumb(searching);
   $('scope').classList.toggle('on',scopeAll);
   $('lcount').textContent=list.length+(list.length===1?' nota':' notas');
-  if(!list.length){ul.append(el('li',{class:'empty',style:'cursor:default'},searching?'Sin resultados. Prueba con otra palabra o busca en “Todo”.':'Sin notas aquí. Pulsa “+ Nota”.'));return;}
+  // inside a top folder: its subfolders first, like a file explorer
+  const subs=!searching&&!curFolder.startsWith('tag:')&&curFolder!==INBOX?kids(curFolder):[];
+  subs.forEach(c=>ul.append(el('li',{class:'sf',onclick:()=>openFolder(c.id),title:'Abrir subcarpeta'},
+    el('span',{},'📂'),el('span',{class:'t'},c.name),el('span',{class:'ct'},(k=>k+(k===1?' nota ›':' notas ›'))(notesIn(c.id).length)))));
+  if(!list.length){ul.append(el('li',{class:'empty',style:'cursor:default'},searching?'Sin resultados. Prueba con otra palabra o busca en “Todo”.':subs.length?'No hay notas sueltas en esta carpeta.':'Sin notas aquí. Pulsa “+ Nota”.'));return;}
   const terms=searching?parseQuery(query).terms:[];
   list.forEach((n,rank)=>{
     const d=getDraft(n.id);
     const body=d?d.body:n.body;
-    const where=searching&&scopeAll?' · '+folderName(n.folder_id||INBOX):'';
-    const li=el('li',{class:cur&&cur.id===n.id?'on':'',draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);}},
+    const where=searching&&scopeAll?' · '+(n.folder_id?folderPath(n.folder_id):'Inbox'):'';
+    const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);}},
       el('div',{class:'t'},titleOf(body)||'Sin título'),
       el('div',{class:'p'},snippet(textOf(body),terms)),
       el('div',{class:'m'},fmtDate(n.updated_at)+where+(d?' · sin sincronizar':'')+((n.tags||[]).length?' · #'+n.tags.join(' #'):'')));
+    li.append(el('button',{class:'nmenu',title:'Opciones de la nota','aria-label':'Opciones de la nota “'+(titleOf(body)||'Sin título')+'”',
+      onclick:e=>{e.stopPropagation();noteMenu(n.id);}},'⋯'));
     li.ondragstart=e=>{e.dataTransfer.setData('text/note-id',n.id);e.dataTransfer.effectAllowed='move';};
     ul.append(li);
   });
+}
+function renderCrumb(searching){
+  const c=$('crumb');c.innerHTML='';
+  const f=folders.find(x=>x.id===curFolder);
+  if(searching||!f||!f.parent_id){c.hidden=true;return;}
+  const p=folders.find(x=>x.id===f.parent_id);
+  c.hidden=false;
+  c.append(el('a',{onclick:()=>openFolder(p.id)},'📁 '+p.name),' › ',el('span',{},f.name));
+}
+async function noteMenu(id){
+  const n=notes.find(x=>x.id===id);if(!n)return;
+  const act=await modal('“'+(titleOf(n.body)||'Sin título')+'”',null,[
+    {label:'Mover a…',value:'move'},{label:'Duplicar',value:'dup'},{label:'Borrar…',value:'del',cls:'dng'},{label:'Cerrar',value:null}]);
+  if(act==='move'){const t=await askFolder('Mover nota a…',{exclude:n.folder_id||INBOX});if(t)moveNote(id,t,'card_menu');}
+  else if(act==='dup')duplicateNote(id);
+  else if(act==='del')deleteNote(id);
+}
+function withCopySuffix(body){
+  if(!isHTML(body)){const ls=(body||'').split('\n');const i=ls.findIndex(l=>l.trim());if(i<0)return body;ls[i]=ls[i]+' (copia)';return ls.join('\n');}
+  const doc=new DOMParser().parseFromString('<body>'+body+'</body>','text/html');
+  const w=doc.createTreeWalker(doc.body,NodeFilter.SHOW_TEXT);let t;
+  while((t=w.nextNode()))if(t.nodeValue.trim()){t.nodeValue=t.nodeValue.replace(/\s+$/,'')+' (copia)';break;}
+  return doc.body.innerHTML;
+}
+async function duplicateNote(id){
+  const n=notes.find(x=>x.id===id);if(!n)return;
+  if(cur&&cur.id===id&&(saveTimer||getDraft(id))){if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}await save();}
+  const src=notes.find(x=>x.id===id),body=withCopySuffix(getDraft(id)?.body||src.body);
+  try{
+    const [row]=await api('notes',{method:'POST',headers:REP,body:JSON.stringify({folder_id:src.folder_id,tags:src.tags||[],title:titleOf(body),body})});
+    notes.unshift(row);track('note_duplicated');renderAll();toast('Nota duplicada.');
+  }catch(e){toast(e.status?'No se pudo duplicar.':'Sin conexión: no se duplicó.');}
 }
 function fmtDate(s){
   const d=new Date(s),now=new Date();
@@ -734,14 +831,18 @@ async function moveNote(id,target,method){
     toast('Movida a '+folderName(folder_id||INBOX));renderAll();
   }catch(e){toast(e.status?'No se pudo mover la nota.':'Sin conexión: no se movió.');}
 }
-async function deleteNote(){
-  if(!cur)return;
-  const ok=await modal('¿Borrar esta nota?',el('p',{},'“'+(titleOf(getBody())||'Sin título')+'” y su historial se borrarán para siempre.'),
+async function deleteNote(id){
+  if(typeof id!=='string')id=cur&&cur.id;
+  const n=notes.find(x=>x.id===id);if(!n)return;
+  const isCur=cur&&cur.id===id;
+  const title=titleOf(isCur?getBody():(getDraft(id)?.body||n.body))||'Sin título';
+  const ok=await modal('¿Borrar esta nota?',el('p',{},'“'+title+'” y su historial se borrarán para siempre.'),
     [{label:'Cancelar',value:false},{label:'Borrar',value:true,cls:'dng'}]);
   if(!ok)return;
   try{
-    await api(`notes?id=eq.${cur.id}`,{method:'DELETE'});
-    dropDraft(cur.id);notes=notes.filter(n=>n.id!==cur.id);cur=null;renderAll();if(isMobile())view('list');
+    if(isCur&&saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+    await api(`notes?id=eq.${id}`,{method:'DELETE'});
+    dropDraft(id);notes=notes.filter(x=>x.id!==id);if(isCur)cur=null;renderAll();if(isCur&&isMobile())view('list');
   }catch(e){toast(e.status?'No se pudo borrar.':'Sin conexión: no se borró.');}
 }
 async function showHistory(){
@@ -979,6 +1080,36 @@ function placeToolbar(){
 if(window.visualViewport){visualViewport.addEventListener('resize',placeToolbar);visualViewport.addEventListener('scroll',placeToolbar);}
 window.addEventListener('resize',()=>{placeToolbar();hidePalette();});
 
+// ── RESIZABLE PANES (desktop): drag, arrow keys, double-click resets; remembered per device ──
+const LAYOUT_DEF={w1:240,w2:300},LIM={w1:[180,420],w2:[220,560]},ED_MIN=380;
+let layout={...LAYOUT_DEF};try{Object.assign(layout,JSON.parse(localStorage.getItem('nb-layout')||'{}'));}catch(e){}
+function applyLayout(save){
+  const room=window.innerWidth-ED_MIN;
+  layout.w1=Math.round(Math.min(Math.max(layout.w1,LIM.w1[0]),LIM.w1[1]));
+  layout.w2=Math.round(Math.min(Math.max(layout.w2,LIM.w2[0]),LIM.w2[1],Math.max(LIM.w2[0],room-layout.w1)));
+  const app=$('app');app.style.setProperty('--w1',layout.w1+'px');app.style.setProperty('--w2',layout.w2+'px');
+  [['rz1','w1'],['rz2','w2']].forEach(([id,k])=>{const h=$(id);h.setAttribute('aria-valuenow',layout[k]);h.setAttribute('aria-valuemin',LIM[k][0]);h.setAttribute('aria-valuemax',LIM[k][1]);});
+  if(save)try{localStorage.setItem('nb-layout',JSON.stringify(layout));}catch(e){}
+}
+[['rz1','w1'],['rz2','w2']].forEach(([id,k])=>{
+  const h=$(id);let x0=0,v0=0;
+  h.addEventListener('pointerdown',e=>{e.preventDefault();h.setPointerCapture(e.pointerId);x0=e.clientX;v0=layout[k];h.classList.add('drag');document.body.classList.add('resizing');});
+  h.addEventListener('pointermove',e=>{if(!h.classList.contains('drag'))return;layout[k]=v0+(e.clientX-x0);applyLayout(false);});
+  const end=()=>{if(!h.classList.contains('drag'))return;h.classList.remove('drag');document.body.classList.remove('resizing');applyLayout(true);track('pane_resized',{pane:k,width:layout[k]});};
+  h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);
+  h.addEventListener('dblclick',()=>{layout[k]=LAYOUT_DEF[k];applyLayout(true);});
+  h.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();layout[k]+=(e.key==='ArrowLeft'?-16:16);applyLayout(true);}});
+});
+applyLayout(false);
+// search bar: sidebar under Inbox on desktop, above the note list on mobile
+function placeSearch(){
+  const sb=$('sbar');
+  if(isMobile()){if(sb.parentNode!==$('listp'))$('crumb').after(sb);}
+  else renderTree();
+}
+matchMedia('(max-width:820px)').addEventListener('change',()=>{placeSearch();renderList();});
+window.addEventListener('resize',()=>applyLayout(false));
+
 // ── WIRING ──
 $('newNote').onclick=newNote;
 let qTimer=null;
@@ -1020,22 +1151,28 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── BOOT ──
+// Shows a message without destroying the page (handlers keep finding their elements)
+function halt(msg){
+  $('app').hidden=true;$('fmt').hidden=true;
+  const box=el('div',{class:'empty',style:'margin-top:20vh'},msg+' ',el('a',{href:'./index.html'},'Abrir Covey Tasks'));
+  document.body.append(box);
+}
 (async()=>{
   session=readSession();
   if(!session){
-    document.body.innerHTML='<div class="empty" style="margin-top:20vh">Inicia sesión en <a href="./index.html">Covey Tasks</a> y vuelve a abrir Notas.</div>';
+    halt('Inicia sesión en Covey Tasks y vuelve a abrir Notas.');
     return;
   }
   const quick=new URLSearchParams(location.search).has('new');
   try{
     await loadAll();
-    renderAll();
+    renderAll();placeSearch();
     if(quick){view('note');await newNote();}
     else if(!isMobile()&&listedNotes()[0])openNote(listedNotes()[0].id);
     else view('list');
     track('app_open_to_editable',{latency_ms:Math.round(performance.now()-T0),quick});
   }catch(e){
-    if(e.status===401){document.body.innerHTML='<div class="empty" style="margin-top:20vh">Tu sesión caducó. Abre <a href="./index.html">Covey Tasks</a>, inicia sesión y vuelve.</div>';return;}
+    if(e.status===401){halt('Tu sesión caducó: inicia sesión en Covey Tasks y vuelve.');return;}
     setStatus(e.status?'error':'offline');renderAll();
     toast(e.status?'Error cargando notas ('+e.status+').':'Sin conexión: no se pueden cargar las notas.');
   }
