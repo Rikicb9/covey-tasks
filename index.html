@@ -1030,7 +1030,7 @@ button{touch-action:manipulation;cursor:pointer;}
           </div>
         </div>
       </div>
-      <div id="version-badge">V3.5 · 2026.05.20</div>
+      <div id="version-badge">V3.5.1 · 2026.10.21</div>
     </div>
   </div>
 </div>
@@ -1126,6 +1126,7 @@ button{touch-action:manipulation;cursor:pointer;}
 </div>
 
 <script>
+// CHANGELOG V3.5.1 (2026-10-21): sync fix — pull uses per-user storage key; failed saves no longer show "Sincronizado"; unpushed edits are pushed before any pull and on reconnect.
 (function(){
 // ── SUPABASE CONFIG ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -1368,17 +1369,29 @@ async function loadFromCloud(){
   return null;
 }
 async function saveToCloud(data){
-  if(!authSession)return;
+  // V3.5.1: returns true only when Supabase confirms the write (HTTP 2xx)
+  if(!authSession)return false;
   await ensureValidSession();
   const ts=new Date().toISOString();
   try{
-    await fetch(`${SB_URL}/rest/v1/covey_state`,{
+    const res=await fetch(`${SB_URL}/rest/v1/covey_state`,{
       method:'POST',
       headers:{...authHeaders(),'Prefer':'resolution=merge-duplicates'},
       body:JSON.stringify({user_id:authSession.user.id,data,updated_at:ts})
     });
+    if(!res.ok)return false;
     lastCloudTs=ts;
-  }catch(e){}
+    return true;
+  }catch(e){return false;}
+}
+// V3.5.1: track unpushed local edits so a pull never overwrites them
+let editSeq=0, pushedSeq=0;
+const hasUnpushed=()=>editSeq>pushedSeq;
+async function pushNow(){
+  const seq=editSeq;
+  const ok=await saveToCloud(toSaveObj());
+  if(ok)pushedSeq=Math.max(pushedSeq,seq);
+  return ok;
 }
 
 // Debounced cloud save
@@ -1389,13 +1402,14 @@ let cloudReady=false;  // ← blocks cloud writes until initial pull completes
 
 function save(){
   saveLocal();  // always write to localStorage immediately
+  editSeq++;
   if(!cloudReady)return;  // ← don't push to Supabase until we've pulled first
   clearTimeout(saveTimer);
   saveTimer=setTimeout(async()=>{
     setSyncStatus('syncing');
-    await saveToCloud(toSaveObj());
+    const ok=await pushNow();
     saveTimer=null;
-    setSyncStatus('ok');
+    setSyncStatus(ok&&!hasUnpushed()?'ok':ok?'syncing':'offline');
   },300);
 }
 
@@ -1552,6 +1566,13 @@ async function pullFromCloud(){
   if(isSyncing||saveTimer)return; // don't pull while a local save is pending
   isSyncing=true;
   setSyncStatus('syncing');
+  // V3.5.1: unpushed local edits go up first; never pull over them
+  if(hasUnpushed()){
+    const ok=await pushNow();
+    setSyncStatus(ok?'ok':'offline');
+    isSyncing=false;
+    return;
+  }
   try{
     const row=await loadFromCloud();
     if(row){
@@ -1560,7 +1581,7 @@ async function pullFromCloud(){
       if(!lastCloudTs||new Date(cloudTs)>new Date(lastCloudTs)){
         // Also check we're not overwriting newer local data
         let localTs=null;
-        try{const raw=localStorage.getItem(STORAGE_KEY);if(raw)localTs=JSON.parse(raw)._localTs;}catch(e){}
+        try{const raw=localStorage.getItem(userStorageKey());if(raw)localTs=JSON.parse(raw)._localTs;}catch(e){} // V3.5.1: was STORAGE_KEY
         if(!localTs||new Date(cloudTs)>new Date(localTs)){
           lastCloudTs=cloudTs;
           applyRemote(row.data);
@@ -1677,12 +1698,13 @@ async function initApp(){
   }catch(e){setSyncStatus('offline');}
   finally{
     cloudReady=true;
-    if(saveTimer){clearTimeout(saveTimer);saveTimer=null;setSyncStatus('syncing');await saveToCloud(toSaveObj());setSyncStatus('ok');}
+    if(saveTimer){clearTimeout(saveTimer);saveTimer=null;setSyncStatus('syncing');const ok=await pushNow();setSyncStatus(ok?'ok':'offline');}
   }
 
   // Start polling
   setInterval(pullFromCloud,25000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullFromCloud();});
+  window.addEventListener('online',pullFromCloud); // V3.5.1: flush unpushed edits on reconnect
 
   // ── PULL TO REFRESH (mobile only) ──
   if('ontouchstart' in window){
