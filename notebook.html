@@ -12,6 +12,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.2.1 (2026-10-21): self-update — on open and when the tab regains focus,
+  the page re-downloads itself bypassing the browser cache; if the version differs it
+  reloads (or asks first if there is an unsaved edit). Fixes stale cached copies.
   Notebook v0.2.0 (2026-10-21): part (c) — search (all notes or this folder, #tag
   filter, accent-insensitive, partial words), "Tareas" link in the list header on
   mobile, quick capture reuses an empty note instead of piling up blank ones,
@@ -167,7 +170,7 @@ input,textarea,select{font:inherit;color:inherit}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver">Notebook v0.2.0 · 2026.10.21</div>
+    <div class="ver" id="ver">Notebook v0.2.1 · 2026.10.21</div>
   </aside>
 
   <section id="listp">
@@ -215,6 +218,7 @@ input,textarea,select{font:inherit;color:inherit}
 (function(){
 'use strict';
 const T0=performance.now();
+const APP_VERSION='0.2.1';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -730,7 +734,23 @@ $('tagin').addEventListener('keydown',e=>{
 });
 window.addEventListener('online',()=>{if(cur&&getDraft(cur.id))scheduleSave(0);poll();});
 window.addEventListener('offline',()=>setStatus('offline'));
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')poll();else if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}});
+// ── SELF-UPDATE: a cached old copy of this page replaces itself with the published one ──
+async function checkForUpdate(){
+  if(!/^https?:$/.test(location.protocol))return;
+  try{
+    const r=await fetch(location.href,{cache:'reload'}); // bypasses and refreshes the HTTP cache for this exact URL
+    if(!r.ok)return;
+    const m=(await r.text()).match(/const APP_VERSION='([\d.]+)'/);
+    if(!m||m[1]===APP_VERSION)return;
+    const pending=!!(saveTimer||inflight||(cur&&getDraft(cur.id)));
+    if(!pending&&sessionStorage.getItem('nb-reloaded')!==m[1]){sessionStorage.setItem('nb-reloaded',m[1]);location.reload();return;}
+    const t=$('toast');t.innerHTML='';
+    t.append('Hay una versión nueva (v'+m[1]+'). ',el('button',{style:'background:var(--a500);color:#fff;border:0;border-radius:6px;padding:4px 10px;margin-left:6px',
+      onclick:async()=>{if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}await save();location.reload();}},'Actualizar'));
+    t.style.display='block';clearTimeout(t._h);
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){poll();checkForUpdate();}else if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}});
 window.addEventListener('beforeunload',e=>{if(cur&&getDraft(cur.id)&&navigator.onLine&&(saveTimer||inflight)){e.preventDefault();e.returnValue='';}});
 document.addEventListener('keydown',e=>{
   if(e.key==='/'&&!['TEXTAREA','INPUT'].includes(document.activeElement.tagName)){e.preventDefault();if(isMobile())view('list');$('q').focus();}
@@ -758,6 +778,7 @@ document.addEventListener('keydown',e=>{
     toast(e.status?'Error cargando notas ('+e.status+').':'Sin conexión: no se pueden cargar las notas.');
   }
   setInterval(poll,POLL_MS);
+  checkForUpdate();
 })();
 })();
 </script>
