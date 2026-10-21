@@ -12,6 +12,13 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.5.2 (2026-10-21): fix — on long notes the tag bar overlapped the text (the
+  editor box could shrink inside its column). UX: tags move to a header at the top of the
+  note, next to where the note lives (folder chip opens "Mover a…"); suggestions from your
+  existing tags while typing.
+  Notebook v0.5.1 (2026-10-21): fix — on an empty note the placeholder and the cursor
+  appeared centred: the editor reused the class name of the centred empty-state messages
+  (.empty). Renamed to .is-empty; placeholder pinned to the top-left.
   Notebook v0.5.0 (2026-10-21): OneNote-style hybrid canvas — the note still flows as a
   document, and on desktop a double-click on empty space (or "/" → Bloque flotante) creates
   a floating block you can drag and resize; on narrow screens floating blocks show in
@@ -164,8 +171,9 @@ body.resizing{cursor:col-resize;user-select:none}
 .tbtn.danger:hover{background:var(--redb);color:var(--red);border-color:var(--red)}
 #ebody{flex:1;overflow:auto;padding:16px clamp(12px,4vw,40px) 24px;display:flex;flex-direction:column;gap:10px}
 /* rich-text editor */
-#ed{flex:1;min-height:55dvh;outline:0;font:16px/1.6 var(--fn);word-wrap:break-word;position:relative;caret-color:var(--a500)}
-#ed.empty::before{content:attr(data-ph);color:var(--s400);position:absolute;pointer-events:none}
+#ed{flex:1 0 auto;min-height:55dvh;outline:0;font:16px/1.6 var(--fn);word-wrap:break-word;position:relative;caret-color:var(--a500)}
+#ed.is-empty::before{content:attr(data-ph);color:var(--s400);position:absolute;left:0;top:0;pointer-events:none;text-align:left;line-height:1.6}
+#ed>p,#ed div.float>p,#ed div.callout>p{min-height:1.6em;text-align:left}
 #ed p,#ed div{margin:0 0 .35em}
 #ed h1,#ed h2,#ed h3{margin:.6em 0 .3em;line-height:1.25}
 #ed h1{font-size:1.5em}#ed h2{font-size:1.3em}#ed h3{font-size:1.1em}
@@ -245,7 +253,9 @@ body.resizing{cursor:col-resize;user-select:none}
 #linkchip.show{display:inline-flex;align-items:center}
 .mfield{display:block;font-size:12px;color:var(--s500);margin:4px 0}
 #mbox .mfield+input{margin-bottom:10px}
-.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px dashed var(--s200);padding-top:10px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px dashed var(--s200);padding:0 0 10px;flex-shrink:0}
+.where{border:0;background:var(--s100);color:var(--s500);border-radius:99px;padding:4px 10px;font-size:13px;min-height:28px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.where:hover{background:var(--s200);color:var(--s900)}
 .chip{background:var(--a50);color:var(--a600);border-radius:99px;padding:4px 6px 4px 10px;font-size:13px;display:inline-flex;align-items:center;gap:2px}
 .chip button{background:none;border:0;color:var(--a400);width:24px;height:24px;border-radius:99px}
 .chip button:hover{background:var(--a100)}
@@ -310,7 +320,7 @@ body.resizing{cursor:col-resize;user-select:none}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver" id="ver">Notebook v0.5.0 · 2026.10.21</div>
+    <div class="ver" id="ver">Notebook v0.5.2 · 2026.10.21</div>
   </aside>
 
   <div class="rz" id="rz1" role="separator" aria-orientation="vertical" aria-label="Ancho de carpetas" tabindex="0"></div>
@@ -360,12 +370,14 @@ body.resizing{cursor:col-resize;user-select:none}
     </div>
     <div id="ebody">
       <div id="nonote">Elige una nota o crea una nueva.</div>
+      <div class="tags" id="tagbox" hidden>
+        <button class="where" id="where" type="button" title="Dónde está la nota · pulsa para moverla"></button>
+        <span id="chips"></span>
+        <input id="tagin" placeholder="+ etiqueta" maxlength="40" autocapitalize="none" list="taglist" aria-label="Añadir etiqueta"/>
+        <datalist id="taglist"></datalist>
+      </div>
       <div class="panel" id="panel"></div>
       <div id="ed" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Texto de la nota" data-ph="Escribe… La primera línea es el título" hidden></div>
-      <div class="tags" id="tagbox" hidden>
-        <span id="chips"></span>
-        <input id="tagin" placeholder="+ etiqueta (Enter)" maxlength="40" autocapitalize="none"/>
-      </div>
     </div>
   </section>
 </div>
@@ -394,7 +406,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.5.0';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.5.2';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -739,6 +751,8 @@ function renderEditor(){
   $('nonote').hidden=has;$('ed').hidden=!has;$('fmt').hidden=!has;$('tagbox').hidden=!has;
   ['bMove','bHist','bDel'].forEach(b=>$(b).disabled=!has);
   if(!has){hidePalette();closeSlash();['linkchip','bubble','tbar'].forEach(i=>$(i).classList.remove('show'));return;}
+  $('where').textContent=(cur.folder_id?'📁 '+folderPath(cur.folder_id):'📥 Inbox');
+  const dl=$('taglist');dl.innerHTML='';allTags().filter(t=>!(cur.tags||[]).includes(t)).forEach(t=>dl.append(el('option',{value:t})));
   const chips=$('chips');chips.innerHTML='';
   (cur.tags||[]).forEach(tg=>chips.append(el('span',{class:'chip'},'#'+tg,el('button',{title:'Quitar',onclick:()=>setTags((cur.tags||[]).filter(x=>x!==tg))},'×'))));
 }
@@ -1005,7 +1019,7 @@ async function deleteFolder(f){
 
 // ── RICH-TEXT EDITOR ──
 const ED=()=>$('ed');
-function updateEmpty(){const e=ED();e.classList.toggle('empty',!e.textContent.trim()&&!e.querySelector('li,h1,h2,h3'));}
+function updateEmpty(){const e=ED();e.classList.toggle('is-empty',!e.textContent.trim()&&!e.querySelector('li,h1,h2,h3'));}
 function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';orderFloats();decorate();updateEmpty();}
 function getBody(){const h=sanitize(ED().innerHTML);return textOf(h).trim()||/<(li|table|hr|div)/i.test(h)?h:'';}
 function focusEditor(){const e=ED();e.focus();const r=document.createRange();r.selectNodeContents(e);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);}
@@ -1448,6 +1462,7 @@ $('bHist').onclick=showHistory;
 $('bDel').onclick=deleteNote;
 $('bMove').onclick=async()=>{if(!cur)return;const t=await askFolder('Mover nota a…',{exclude:cur.folder_id||INBOX});if(t)moveNote(cur.id,t,'menu');};
 $('toFolders').onclick=()=>view('folders');
+$('where').onclick=()=>$('bMove').click();
 $('toList').onclick=()=>{if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}view('list');renderList();};
 $('tagin').addEventListener('keydown',e=>{
   if((e.key==='Enter'||e.key===',')&&$('tagin').value.trim()){e.preventDefault();setTags([...(cur.tags||[]),$('tagin').value]);$('tagin').value='';}
