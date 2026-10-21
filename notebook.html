@@ -12,6 +12,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.5.3 (2026-10-21): "Cita" removed from the "/" menu (hard to leave, low
+  value). Existing quotes still display; Enter on an empty line now leaves a quote, and
+  "Quitar formato" turns a quote back into normal text.
   Notebook v0.5.2 (2026-10-21): fix — on long notes the tag bar overlapped the text (the
   editor box could shrink inside its column). UX: tags move to a header at the top of the
   note, next to where the note lives (folder chip opens "Mover a…"); suggestions from your
@@ -320,7 +323,7 @@ body.resizing{cursor:col-resize;user-select:none}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver" id="ver">Notebook v0.5.2 · 2026.10.21</div>
+    <div class="ver" id="ver">Notebook v0.5.3 · 2026.10.21</div>
   </aside>
 
   <div class="rz" id="rz1" role="separator" aria-orientation="vertical" aria-label="Ancho de carpetas" tabindex="0"></div>
@@ -406,7 +409,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.5.2';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.5.3';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -1057,7 +1060,7 @@ function exec(cmd){
   if(cmd==='insert'){openSlash(currentBlock()||lastBlock(),'button');return;}
   if(cmd==='heading')cmdHeading();
   else if(cmd==='ul'||cmd==='ol'||cmd==='checklist')cmdList(cmd);
-  else if(cmd==='clear'){run('removeFormat');const b=currentBlock();if(b&&/^H[1-3]$/.test(b.tagName))run('formatBlock','<p>');}
+  else if(cmd==='clear'){run('removeFormat');const b=currentBlock();if(b&&/^H[1-3]$/.test(b.tagName))run('formatBlock','<p>');if(closestInEd('blockquote'))run('formatBlock','<p>');}
   else run(cmd);
   afterFormat(cmd);
 }
@@ -1278,7 +1281,6 @@ const SLASH=[
   {k:'ol',l:'Lista numerada',d:'1, 2, 3',kw:'numerada ordenada numeros'},
   {k:'checklist',l:'Lista de tareas',d:'Casillas para marcar',kw:'tareas checklist todo casillas'},
   {k:'callout',l:'Destacado',d:'Caja de color para resaltar',kw:'destacado callout aviso caja nota importante'},
-  {k:'quote',l:'Cita',d:'Texto citado',kw:'cita quote'},
   {k:'hr',l:'Separador',d:'Línea horizontal',kw:'separador linea divisor'},
   {k:'table',l:'Tabla',d:'3 × 3 · Tab pasa a la siguiente celda',kw:'tabla table'},
   {k:'date',l:'Fecha de hoy',d:'',kw:'fecha hoy dia date'},
@@ -1414,6 +1416,12 @@ ED().addEventListener('keydown',e=>{
           return;}}}
   }
   if(e.key==='Enter'&&!e.shiftKey){
+    const q=closestInEd('blockquote');
+    if(q&&!q.closest('div.callout')){const b=currentBlock(),txt=(b&&b!==q?b.textContent:'');
+      const sel=getSelection(),lineEmpty=b===q?!sel.anchorNode.textContent.trim():!txt.trim();
+      if(lineEmpty){e.preventDefault();const p=document.createElement('p');p.innerHTML='<br>';
+        if(b&&b!==q&&b.parentNode===q){b.remove();}else{const last=q.lastChild;if(last&&last.nodeName==='BR')last.remove();}
+        q.after(p);if(!q.textContent.trim())q.remove();caretInto(p);onType();return;}}
     const c=closestInEd('div.callout'),b=currentBlock();
     if(c&&b&&b.parentNode===c&&b.tagName==='P'&&!b.textContent.trim()&&contentKids(c).slice(-1)[0]===b&&contentKids(c).length>1){
       e.preventDefault();c.after(b);caretInto(b);onType();}
