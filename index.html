@@ -976,8 +976,8 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
         <button class="tab-btn active" id="tab-list">📋 Lista</button>
         <button class="tab-btn" id="tab-matrix">⊞ Covey</button>
         <button class="tab-btn" id="tab-review">🔄 Revisión</button>
-        <a class="tab-btn" id="tab-notes" href="./notebook.html" title="Abrir el bloc de notas" aria-label="Notas">📝<span class="tab-lbl">&nbsp;Notas</span></a>
-        <a id="new-note-btn" href="./notebook.html?new=1" title="Crear una nota nueva" aria-label="Nueva nota">+<span class="nn-lbl">&nbsp;Nota</span><span class="nn-ic">📝</span></a>
+        <a class="tab-btn" id="tab-notes" href="./notebook.html?from=covey" title="Abrir el bloc de notas" aria-label="Notas">📝<span class="tab-lbl">&nbsp;Notas</span></a>
+        <a id="new-note-btn" href="./notebook.html?new=1&amp;from=covey" title="Crear una nota nueva" aria-label="Nueva nota">+<span class="nn-lbl">&nbsp;Nota</span><span class="nn-ic">📝</span></a>
         <button id="user-badge" title="Cerrar sesión">●&nbsp;<span id="user-email-label"></span></button>
         <div id="sync-dot" title="Sincronizando..." style="width:7px;height:7px;border-radius:50%;background:#F59E0B;flex-shrink:0;margin:auto 6px auto 4px;transition:background .5s;"></div>
       </div>
@@ -1042,7 +1042,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
           </div>
         </div>
       </div>
-      <div id="version-badge">V3.6.0 · 2026.10.21</div>
+      <div id="version-badge">V3.6.1 · 2026.10.21</div>
     </div>
   </div>
 </div>
@@ -1138,6 +1138,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
 </div>
 
 <script>
+// CHANGELOG V3.6.1 (2026-10-21): notebook links point to fresh URLs (?from=covey) so browsers drop stale cached copies.
 // CHANGELOG V3.6.0 (2026-10-21): top bar gets "📝 Notas" (opens notebook.html) and "+ Nota" (notebook.html?new=1).
 // CHANGELOG V3.5.1 (2026-10-21): sync fix — pull uses per-user storage key; failed saves no longer show "Sincronizado"; unpushed edits are pushed before any pull and on reconnect.
 (function(){
