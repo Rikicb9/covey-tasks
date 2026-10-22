@@ -12,6 +12,15 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.6.0 (2026-10-21): also fixes lists created inside a paragraph (<p><ul>), which
+  reloaded with blank lines (since v0.3.0; cleaned automatically when a note opens), and
+  dialogs without a text field now take keyboard focus so Esc closes them.
+  Desktop-grade shortcuts and helpers — Tab/Shift+Tab
+  (nest lists, indent paragraphs at line start, insert spacing mid-line, move between table
+  cells), indent/outdent, undo/redo buttons (custom actions undoable too), Google-Docs-style
+  shortcuts (Ctrl+Alt+1/2/0, Ctrl+Shift+7/8/9, Ctrl+Shift+X, Ctrl+\, Ctrl+Enter, Alt+Shift+↑/↓),
+  automatic links for typed or pasted URLs, keyboard cheat sheet (Ctrl+/ or ⌨), Esc leaves
+  the editor so Tab never traps the keyboard. Shortcuts shown in every tooltip (⌘ on Mac).
   Notebook v0.5.3 (2026-10-21): "Cita" removed from the "/" menu (hard to leave, low
   value). Existing quotes still display; Enter on an empty line now leaves a quote, and
   "Quitar formato" turns a quote back into normal text.
@@ -237,9 +246,19 @@ body.resizing{cursor:col-resize;user-select:none}
 #tbar button{border:0;background:var(--s50);border-radius:6px;min-height:34px;padding:0 10px;font-size:13px}
 #tbar button:hover{background:var(--a50)}
 #tbar .dng:hover{background:var(--redb);color:var(--red)}
+[data-indent="1"]{margin-left:2em!important}[data-indent="2"]{margin-left:4em!important}[data-indent="3"]{margin-left:6em!important}
+[data-indent="4"]{margin-left:8em!important}[data-indent="5"]{margin-left:10em!important}[data-indent="6"]{margin-left:12em!important}
+#ed ul ul,#ed ol ol,#ed ul ol,#ed ol ul{margin:.1em 0}
+.kbt{width:100%;border-collapse:collapse;font-size:13px}
+.kbt td{padding:5px 4px;border-bottom:1px solid var(--s100);vertical-align:top}
+.kbt td:first-child{white-space:nowrap;color:var(--s500)}
+.kbt kbd{font-family:var(--mono);font-size:12px;background:var(--s100);border:1px solid var(--s200);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--s900)}
+.kbt h4{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--s500);margin:10px 0 4px}
+#mbox.wide{width:min(560px,100%);max-height:85dvh;overflow:auto}
 /* formatting toolbar */
 #fmt{display:flex;align-items:center;gap:2px;padding:4px 8px;border-bottom:1px solid var(--s200);background:#fff;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 #fmt::-webkit-scrollbar{display:none}
+@media (min-width:821px){#fmt{flex-wrap:wrap;overflow:visible;gap:0;padding:4px 6px}#fmt .fb{min-width:34px;height:36px;font-size:15px}#fmt .fsep{margin:0 3px}}
 #fmt[hidden]{display:none}
 .fb{flex-shrink:0;min-width:40px;height:40px;border:0;background:none;border-radius:8px;font-size:16px;color:var(--s800);display:inline-flex;align-items:center;justify-content:center;position:relative}
 .fb:hover{background:var(--s100)}
@@ -311,6 +330,8 @@ body.resizing{cursor:col-resize;user-select:none}
   #fmt{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
   #fmt.end{-webkit-mask-image:none;mask-image:none}
   #tbar button{min-height:44px}
+  .fb.keys{display:none}
+  [data-cmd=undo]{order:17}[data-cmd=redo]{order:18}[data-cmd=outdent]{order:6}[data-cmd=indent]{order:6}
   [data-cmd=insert]{order:0}[data-cmd=bold]{order:1}[data-cmd=italic]{order:2}[data-cmd=checklist]{order:3}[data-cmd=ul]{order:4}[data-cmd=ol]{order:5}
   [data-pal=fore]{order:6}[data-pal=hilite]{order:7}[data-cmd=link]{order:8}[data-cmd=heading]{order:9}
   [data-cmd=underline]{order:10}[data-cmd=strikeThrough]{order:11}[data-cmd=clear]{order:12}
@@ -323,7 +344,7 @@ body.resizing{cursor:col-resize;user-select:none}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver" id="ver">Notebook v0.5.3 · 2026.10.21</div>
+    <div class="ver" id="ver">Notebook v0.6.0 · 2026.10.21</div>
   </aside>
 
   <div class="rz" id="rz1" role="separator" aria-orientation="vertical" aria-label="Ancho de carpetas" tabindex="0"></div>
@@ -355,21 +376,27 @@ body.resizing{cursor:col-resize;user-select:none}
     </div>
     <div id="fmt" role="toolbar" aria-label="Formato del texto" hidden>
       <button class="fb" data-cmd="insert" title="Insertar (o escribe «/»)" aria-label="Insertar bloque" style="font-size:20px;color:var(--a500)">＋</button>
-      <button class="fb" data-cmd="bold" title="Negrita (Ctrl/Cmd+B)" aria-label="Negrita"><b>B</b></button>
-      <button class="fb" data-cmd="italic" title="Cursiva (Ctrl/Cmd+I)" aria-label="Cursiva"><i style="font-family:Georgia,serif">I</i></button>
-      <button class="fb" data-cmd="underline" title="Subrayado (Ctrl/Cmd+U)" aria-label="Subrayado"><u>U</u></button>
-      <button class="fb" data-cmd="strikeThrough" title="Tachado" aria-label="Tachado"><s>S</s></button>
+      <button class="fb" data-cmd="undo" data-kb="Mod+Z" title="Deshacer" aria-label="Deshacer">↶</button>
+      <button class="fb" data-cmd="redo" data-kb="Mod+Shift+Z" title="Rehacer" aria-label="Rehacer">↷</button>
+      <span class="fsep"></span>
+      <button class="fb" data-cmd="bold" data-kb="Mod+B" title="Negrita" aria-label="Negrita"><b>B</b></button>
+      <button class="fb" data-cmd="italic" data-kb="Mod+I" title="Cursiva" aria-label="Cursiva"><i style="font-family:Georgia,serif">I</i></button>
+      <button class="fb" data-cmd="underline" data-kb="Mod+U" title="Subrayado" aria-label="Subrayado"><u>U</u></button>
+      <button class="fb" data-cmd="strikeThrough" data-kb="Mod+Shift+X" title="Tachado" aria-label="Tachado"><s>S</s></button>
       <span class="fsep"></span>
       <button class="fb" data-pal="fore" title="Color del texto" aria-label="Color del texto" aria-haspopup="true">A<span class="bar" id="foreBar"></span></button>
       <button class="fb" data-pal="hilite" title="Resaltar" aria-label="Resaltar" aria-haspopup="true"><span style="background:#FEF08A;padding:0 5px;border-radius:3px">A</span></button>
-      <button class="fb" data-cmd="link" title="Enlace (Ctrl/Cmd+K)" aria-label="Enlace">🔗</button>
+      <button class="fb" data-cmd="link" data-kb="Mod+K" title="Enlace" aria-label="Enlace">🔗</button>
       <span class="fsep"></span>
-      <button class="fb" data-cmd="heading" title="Título de sección" aria-label="Título de sección" style="font-weight:700">H</button>
-      <button class="fb" data-cmd="ul" title="Lista con viñetas (escribe «- »)" aria-label="Lista con viñetas">•≡</button>
-      <button class="fb" data-cmd="ol" title="Lista numerada (escribe «1. »)" aria-label="Lista numerada" style="font-size:14px">1.≡</button>
-      <button class="fb" data-cmd="checklist" title="Lista de tareas (escribe «[] »)" aria-label="Lista de tareas">☑</button>
+      <button class="fb" data-cmd="heading" data-kb="Mod+Alt+1" title="Título de sección" aria-label="Título de sección" style="font-weight:700">H</button>
+      <button class="fb" data-cmd="ul" data-kb="Mod+Shift+8" title="Lista con viñetas (escribe «- »)" aria-label="Lista con viñetas">•≡</button>
+      <button class="fb" data-cmd="ol" data-kb="Mod+Shift+7" title="Lista numerada (escribe «1. »)" aria-label="Lista numerada" style="font-size:14px">1.≡</button>
+      <button class="fb" data-cmd="checklist" data-kb="Mod+Shift+9" title="Lista de tareas (escribe «[] »)" aria-label="Lista de tareas">☑</button>
+      <button class="fb" data-cmd="outdent" data-kb="Shift+Tab" title="Reducir sangría" aria-label="Reducir sangría">⇤</button>
+      <button class="fb" data-cmd="indent" data-kb="Tab" title="Aumentar sangría" aria-label="Aumentar sangría">⇥</button>
       <span class="fsep"></span>
-      <button class="fb" data-cmd="clear" title="Quitar formato" aria-label="Quitar formato" style="font-size:14px">T<sub>×</sub></button>
+      <button class="fb" data-cmd="clear" data-kb="Mod+\\" title="Quitar formato" aria-label="Quitar formato" style="font-size:14px">T<sub>×</sub></button>
+      <button class="fb keys" data-cmd="keys" data-kb="Mod+/" title="Atajos de teclado" aria-label="Atajos de teclado">⌨</button>
     </div>
     <div id="ebody">
       <div id="nonote">Elige una nota o crea una nueva.</div>
@@ -409,7 +436,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.5.3';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.6.0';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -485,7 +512,7 @@ function modal(title,content,buttons){
     buttons.forEach(b=>row.append(el('button',{class:'btn '+(b.cls||''),onclick:()=>{close();res(b.value);}},b.label)));
     box.append(row);
     $('modal').classList.add('show');
-    const inp=box.querySelector('input,select');if(inp)setTimeout(()=>inp.focus(),30);
+    const inp=box.querySelector('input,select');setTimeout(()=>(inp||box.querySelector('.btn.pri')||box.querySelector('.btn'))?.focus(),30);
     // preventDefault: otherwise the Enter keystroke lands in the editor once focus returns to it
     box.onkeydown=e=>{if(e.key==='Enter'&&inp&&inp.tagName==='INPUT'){e.preventDefault();close();res(buttons.find(b=>b.cls==='pri')?.value);}if(e.key==='Escape'){e.preventDefault();close();res(null);}};
     function close(){$('modal').classList.remove('show');}
@@ -542,6 +569,7 @@ function sanitize(html,{keepColors=true}={}){
       }
       if(tag==='A'){const h=(ch.getAttribute('href')||'').trim();if(/^(https?:\/\/|mailto:)/i.test(h))keep.href=h;}
       if(tag==='UL'&&ch.classList.contains('checklist'))keep.class='checklist';
+      if(/^(P|H1|H2|H3)$/.test(tag)){const n=+ch.getAttribute('data-indent');if(n>=1&&n<=6)keep['data-indent']=String(Math.round(n));}
       if(tag==='DIV'&&keepColors){ // own blocks only (never from pasted content)
         const int=v=>{const n=Math.round(+v);return Number.isFinite(n)?String(Math.min(Math.max(n,0),20000)):null;};
         if(ch.classList.contains('float')){keep.class='float';['x','y','w'].forEach(k=>{const v=int(ch.getAttribute('data-'+k));if(v!==null)keep['data-'+k]=v;});}
@@ -1023,7 +1051,7 @@ async function deleteFolder(f){
 // ── RICH-TEXT EDITOR ──
 const ED=()=>$('ed');
 function updateEmpty(){const e=ED();e.classList.toggle('is-empty',!e.textContent.trim()&&!e.querySelector('li,h1,h2,h3'));}
-function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';orderFloats();decorate();updateEmpty();}
+function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';unwrapListsFromParas();ED().querySelectorAll(':scope>p:empty').forEach(p=>{if(p.nextElementSibling&&/^(UL|OL)$/.test(p.nextElementSibling.tagName)||p.previousElementSibling&&/^(UL|OL)$/.test(p.previousElementSibling.tagName))p.remove();});orderFloats();decorate();updateEmpty();}
 function getBody(){const h=sanitize(ED().innerHTML);return textOf(h).trim()||/<(li|table|hr|div)/i.test(h)?h:'';}
 function focusEditor(){const e=ED();e.focus();const r=document.createRange();r.selectNodeContents(e);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);}
 let savedRange=null;
@@ -1041,6 +1069,12 @@ function currentBlock(){const s=getSelection();if(!s.rangeCount)return null;let 
   n=n.nodeType===1?n:n.parentNode;while(n&&n.parentNode!==ED()&&!/^(LI|H[1-3]|P|DIV|BLOCKQUOTE|PRE)$/.test(n.tagName))n=n.parentNode;return n===ED()?null:n;}
 function run(cmd,val=null){document.execCommand(cmd,false,val);}
 function afterFormat(kind){onType();updateActive();track('format_applied',{kind});}
+function unwrapListsFromParas(){ // Chrome can produce <p><ul>…</ul></p>: invalid, and reloads with blank lines
+  ED().querySelectorAll('p>ul,p>ol').forEach(l=>{const p=l.parentNode;if(!p.isConnected)return;
+    const s=getSelection(),r=s.rangeCount?s.getRangeAt(0).cloneRange():null;
+    if([...p.childNodes].every(n=>n===l||(n.nodeType===3&&!n.nodeValue.trim())||n.nodeName==='BR'))p.replaceWith(l);else p.after(l);
+    if(r){s.removeAllRanges();s.addRange(r);}});
+}
 function cmdList(kind){ // ul | ol | checklist, each toggles
   const li=closestInEd('li'),list=li&&li.parentNode;
   const isCl=list&&list.tagName==='UL'&&list.classList.contains('checklist');
@@ -1052,12 +1086,16 @@ function cmdList(kind){ // ul | ol | checklist, each toggles
     }
   }else if(kind==='ul'&&isCl){list.classList.remove('checklist');list.querySelectorAll(':scope>li').forEach(x=>x.removeAttribute('data-done'));}
   else run(kind==='ul'?'insertUnorderedList':'insertOrderedList');
+  unwrapListsFromParas();
 }
 function cmdHeading(){const b=currentBlock();run('formatBlock',b&&b.tagName==='H2'?'<p>':'<h2>');}
 function exec(cmd){
   restoreSel();
   if(cmd==='link'){$('bubble').classList.remove('show');linkDialog();return;}
   if(cmd==='insert'){openSlash(currentBlock()||lastBlock(),'button');return;}
+  if(cmd==='keys'){showKeys();return;}
+  if(cmd==='undo'||cmd==='redo'){doUndo(cmd==='redo');return;}
+  if(cmd==='indent'||cmd==='outdent'){indentBlock(cmd==='outdent');return;}
   if(cmd==='heading')cmdHeading();
   else if(cmd==='ul'||cmd==='ol'||cmd==='checklist')cmdList(cmd);
   else if(cmd==='clear'){run('removeFormat');const b=currentBlock();if(b&&/^H[1-3]$/.test(b.tagName))run('formatBlock','<p>');if(closestInEd('blockquote'))run('formatBlock','<p>');}
@@ -1164,14 +1202,16 @@ ED().addEventListener('keydown',e=>{
 ED().addEventListener('click',e=>{
   const li=e.target.closest('ul.checklist>li');
   if(li&&ED().contains(li)&&e.clientX<li.getBoundingClientRect().left+28){
-    li.setAttribute('data-done',li.getAttribute('data-done')==='true'?'false':'true');e.preventDefault();onType();track('format_applied',{kind:'check_toggle'});return;}
+    pushCustom();li.setAttribute('data-done',li.getAttribute('data-done')==='true'?'false':'true');e.preventDefault();onType();track('format_applied',{kind:'check_toggle'});return;}
   const a=e.target.closest('a');
   if(a&&(e.metaKey||e.ctrlKey)){e.preventDefault();window.open(a.getAttribute('href'),'_blank','noopener');}
 });
 ED().addEventListener('paste',e=>{
   e.preventDefault();
   const html=e.clipboardData.getData('text/html'),text=e.clipboardData.getData('text/plain');
-  if(html)run('insertHTML',sanitize(html,{keepColors:false}));else run('insertText',text);
+  const t=(text||'').trim();
+  if(!html&&/^(https?:\/\/|www\.)\S+$/i.test(t)){const u=/^www\./i.test(t)?'https://'+t:t;run('insertHTML',`<a href="${esc(u)}">${esc(t)}</a>&nbsp;`);}
+  else if(html)run('insertHTML',sanitize(html,{keepColors:false}));else run('insertText',text);
   onType();
 });
 ED().addEventListener('drop',e=>{if(e.dataTransfer.files.length||e.dataTransfer.types.includes('text/note-id'))e.preventDefault();});
@@ -1242,7 +1282,7 @@ ED().addEventListener('pointerdown',e=>{
   if(e.target.closest('.fdel,.ctone')){e.preventDefault();return;} // never move focus/caret onto block buttons
   const f=e.target.closest('div.float');if(!f||isFlow())return;
   const res=e.target.closest('.fres');if(!res&&!e.target.closest('.fgrip'))return;
-  e.preventDefault();
+  e.preventDefault();pushCustom();
   drag={f,mode:res?'w':'xy',x0:e.clientX,y0:e.clientY,fx:+f.dataset.x||0,fy:+f.dataset.y||0,fw:+f.dataset.w||280,moved:false};
   f.classList.add('moving');document.body.classList.add('resizing');
 });
@@ -1266,10 +1306,10 @@ ED().addEventListener('click',async e=>{
   if(del){e.preventDefault();e.stopPropagation();const f=del.closest('div.float');
     const txt=contentKids(f).map(c=>c.textContent).join('').trim();
     if(txt&&!(await modal('¿Borrar este bloque flotante?',el('p',{},'Se quitará “'+txt.slice(0,60)+(txt.length>60?'…':'')+'” de la nota. Puedes recuperarlo desde Historial.'),[{label:'Cancelar',value:false},{label:'Borrar',value:true,cls:'dng'}])))return;
-    f.remove();fitCanvas();onType();track('format_applied',{kind:'float_delete'});return;}
+    pushCustom();f.remove();fitCanvas();onType();track('format_applied',{kind:'float_delete'});return;}
   const tone=e.target.closest('.ctone');
   if(tone){e.preventDefault();e.stopPropagation();const c=tone.closest('div.callout');
-    c.dataset.tone=TONES[(TONES.indexOf(c.dataset.tone)+1)%TONES.length];onType();track('format_applied',{kind:'callout_tone'});}
+    pushCustom();c.dataset.tone=TONES[(TONES.indexOf(c.dataset.tone)+1)%TONES.length];onType();track('format_applied',{kind:'callout_tone'});}
 },true);
 
 // ── "/" MENU (also the "＋" button) ──
@@ -1327,7 +1367,7 @@ function targetPara(b){ // an empty top-level paragraph to transform
   return p;
 }
 function chooseSlash(it){
-  let b=slash.block;const mode=slash.mode;closeSlash();
+  let b=slash.block;const mode=slash.mode;closeSlash();pushCustom();
   if(!b||!b.isConnected)b=lastBlock();
   ED().focus({preventScroll:true});
   if(mode==='slash'&&b){ // remove the "/query" text
@@ -1371,7 +1411,7 @@ function placeTableBar(){
 $('tbar').addEventListener('pointerdown',e=>e.preventDefault());
 $('tbar').addEventListener('click',e=>{
   const act=e.target.closest('button')?.dataset.t;if(!act)return;
-  restoreSel();const c=cellOf();if(!c)return;
+  restoreSel();const c=cellOf();if(!c)return;pushCustom();
   const tr=c.parentNode,t=tr.closest('table'),ci=[...tr.children].indexOf(c),rows=[...t.querySelectorAll('tr')];
   const blank=()=>{const d=document.createElement('td');d.innerHTML='<br>';return d;};
   if(act==='row'){const n=document.createElement('tr');[...tr.children].forEach(()=>n.append(blank()));tr.after(n);caretInto(n.children[ci]);}
@@ -1401,10 +1441,10 @@ ED().addEventListener('keydown',e=>{
     if(e.key==='Escape'){e.preventDefault();closeSlash();return;}
   }
   const s=getSelection();
-  if(e.key==='Tab'){const c=cellOf();if(c){e.preventDefault();
+  if(e.key==='Tab'&&!(e.ctrlKey||e.metaKey||e.altKey)){const c=cellOf();if(c){e.preventDefault();
     const cells=[...c.closest('table').querySelectorAll('td,th')],i=cells.indexOf(c);
     let n=cells[i+(e.shiftKey?-1:1)];
-    if(!n&&!e.shiftKey){const tr=c.parentNode,row=document.createElement('tr');[...tr.children].forEach(()=>{const d=document.createElement('td');d.innerHTML='<br>';row.append(d);});tr.after(row);n=row.children[0];onType();}
+    if(!n&&!e.shiftKey){pushCustom();const tr=c.parentNode,row=document.createElement('tr');[...tr.children].forEach(()=>{const d=document.createElement('td');d.innerHTML='<br>';row.append(d);});tr.after(row);n=row.children[0];onType();}
     if(n)caretInto(n);return;}}
   if(e.key==='Backspace'&&s.rangeCount&&s.isCollapsed){
     const box=closestInEd('div.float,div.callout');
@@ -1428,6 +1468,105 @@ ED().addEventListener('keydown',e=>{
   }
 });
 window.addEventListener('scroll',()=>{placeBubble();placeTableBar();},true);
+
+// ── SHORTCUTS & HELPERS ──
+const IS_MAC=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
+const kbLabel=k=>IS_MAC?k.replace(/Mod\+/g,'⌘').replace(/Alt\+/g,'⌥').replace(/Shift\+/g,'⇧').replace(/Ctrl\+/g,'⌃'):k.replace(/Mod\+/g,'Ctrl+');
+document.querySelectorAll('[data-kb]').forEach(b=>{b.title=b.title+' ('+kbLabel(b.dataset.kb)+')';});
+// custom undo: actions done by direct DOM changes (indent, move, tables, blocks…) are undoable too
+const undoStack=[],redoStack=[];let lastCustom=false,lastUndoCustom=false;
+function caretOffset(){const s=getSelection();if(!s.rangeCount||!inEditor(s.anchorNode))return null;const r=document.createRange();r.selectNodeContents(ED());r.setEnd(s.anchorNode,s.anchorOffset);return r.toString().length;}
+function setCaretOffset(n){if(n==null)return;const w=document.createTreeWalker(ED(),NodeFilter.SHOW_TEXT,{acceptNode:t=>t.parentNode.closest('[data-ui]')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});let t,left=n;
+  while((t=w.nextNode())){if(left<=t.nodeValue.length){const r=document.createRange();r.setStart(t,left);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);return;}left-=t.nodeValue.length;}focusEditor();}
+const snap=()=>({html:sanitize(ED().innerHTML),caret:caretOffset()});
+function pushCustom(){undoStack.push(snap());if(undoStack.length>50)undoStack.shift();redoStack.length=0;lastCustom=true;}
+function restoreSnap(st){ED().innerHTML=st.html||'<p><br></p>';orderFloats();decorate();updateEmpty();ED().focus({preventScroll:true});setCaretOffset(st.caret);onType();}
+function doUndo(redo){
+  restoreSel();
+  if(!redo&&lastCustom&&undoStack.length){redoStack.push(snap());restoreSnap(undoStack.pop());lastCustom=undoStack.length>0;lastUndoCustom=true;}
+  else if(redo&&lastUndoCustom&&redoStack.length){undoStack.push(snap());restoreSnap(redoStack.pop());lastUndoCustom=redoStack.length>0;lastCustom=true;}
+  else{run(redo?'redo':'undo');decorate();onType();}
+  updateActive();track('format_applied',{kind:redo?'redo':'undo'});
+}
+ED().addEventListener('beforeinput',e=>{if(!/^history/.test(e.inputType)){lastCustom=false;lastUndoCustom=false;}});
+// keep checklist style and check marks through native list indent/outdent
+function fixLists(doneState){
+  ED().querySelectorAll('ul.checklist ul, ul.checklist ol').forEach(l=>{if(l.tagName==='UL')l.classList.add('checklist');});
+  ED().querySelectorAll('ul.checklist').forEach(ul=>ul.querySelectorAll(':scope>li').forEach(li=>{if(!li.hasAttribute('data-done'))li.setAttribute('data-done','false');}));
+  const li=closestInEd('li');if(li&&doneState!=null&&li.parentNode.classList.contains('checklist'))li.setAttribute('data-done',doneState);
+}
+function indentBlock(out){
+  restoreSel();
+  const li=closestInEd('li');
+  if(li){const done=li.getAttribute('data-done');run(out?'outdent':'indent');fixLists(done);afterFormat(out?'outdent':'indent');return true;}
+  const b=currentBlock();if(!b||!/^(P|H1|H2|H3)$/.test(b.tagName))return false;
+  const n=+(b.dataset.indent||0),m=Math.max(0,Math.min(6,n+(out?-1:1)));if(m===n)return false;
+  pushCustom();if(m)b.dataset.indent=m;else b.removeAttribute('data-indent');afterFormat(out?'outdent':'indent');return true;
+}
+const atBlockStart=b=>{const s=getSelection();if(!s.rangeCount)return false;const r=document.createRange();r.selectNodeContents(b);r.setEnd(s.anchorNode,s.anchorOffset);return !r.toString().replace(/ /g,' ').trim();};
+function moveBlock(up){
+  const li=closestInEd('li');let b=li||currentBlock();if(!b)return;
+  if(!li){while(b.parentNode&&b.parentNode!==ED()&&!b.parentNode.matches('div.float,div.callout'))b=b.parentNode;}
+  const sib=e=>{let n=up?e.previousElementSibling:e.nextElementSibling;while(n&&(n.hasAttribute('data-ui')||n.classList.contains('float')))n=up?n.previousElementSibling:n.nextElementSibling;return n;};
+  const other=sib(b);if(!other)return;
+  const s=getSelection(),an=s.anchorNode,ao=s.anchorOffset;
+  pushCustom();up?other.before(b):other.after(b);
+  const r=document.createRange();r.setStart(an,ao);r.collapse(true);s.removeAllRanges();s.addRange(r);
+  b.scrollIntoView({block:'nearest'});afterFormat(up?'move_up':'move_down');
+}
+function toggleTask(){const li=closestInEd('ul.checklist>li');if(!li)return false;pushCustom();li.setAttribute('data-done',li.getAttribute('data-done')==='true'?'false':'true');onType();track('format_applied',{kind:'check_toggle'});return true;}
+// automatic links: "https://…" or "www.…" followed by space/Enter, or pasted alone
+const URL_RE=/(?:^|\s)((?:https?:\/\/|www\.)[^\s<>"]+[^\s<>".,;:!?)\]])$/;
+function autoLink(){
+  const s=getSelection();if(!s.rangeCount||!s.isCollapsed)return;const n=s.anchorNode;if(n.nodeType!==3||n.parentNode.closest('a'))return;
+  const before=n.nodeValue.slice(0,s.anchorOffset).replace(/[\s ]+$/,'');const m=before.match(URL_RE);if(!m)return;
+  const url=m[1],start=before.length-url.length;
+  const r=document.createRange();r.setStart(n,start);r.setEnd(n,start+url.length);
+  const a=document.createElement('a');a.href=/^www\./i.test(url)?'https://'+url:url;a.target='_blank';a.rel='noopener noreferrer';
+  const off=s.anchorOffset-(start+url.length);r.surroundContents(a);
+  const after=a.nextSibling;const c=document.createRange();
+  if(after&&after.nodeType===3){c.setStart(after,Math.min(off,after.nodeValue.length));}else{c.setStartAfter(a);}
+  c.collapse(true);s.removeAllRanges();s.addRange(c);track('format_applied',{kind:'autolink'});
+}
+// cheat sheet
+const KEYS=[['Formato',[['Mod+B','Negrita'],['Mod+I','Cursiva'],['Mod+U','Subrayado'],['Mod+Shift+X','Tachado'],['Mod+K','Enlace'],['Mod+\\','Quitar formato']]],
+  ['Bloques',[['Mod+Alt+1','Título'],['Mod+Alt+2','Subtítulo'],['Mod+Alt+0','Texto normal'],['Mod+Shift+8','Lista con viñetas'],['Mod+Shift+7','Lista numerada'],['Mod+Shift+9','Lista de tareas'],['Mod+Enter','Marcar / desmarcar tarea'],['/','Menú insertar']]],
+  ['Mover y sangría',[['Tab','Sangría · anidar en lista · celda siguiente'],['Shift+Tab','Quitar sangría · celda anterior'],['Alt+Shift+↑ / ↓','Subir / bajar línea o elemento']]],
+  ['Editar',[['Mod+Z','Deshacer'],['Mod+Shift+Z','Rehacer'],['Mod+S','Guardar ahora'],['Esc','Salir del editor (Tab sigue por la página)']]],
+  ['Escribir rápido',[['- espacio','Lista'],['1. espacio','Lista numerada'],['[] espacio','Tareas'],['# espacio','Título'],['https://… espacio','Enlace automático']]],
+  ['Notas',[['/','Buscar (fuera del editor)'],['Doble clic en vacío','Bloque flotante (escritorio)'],['Mod+/','Esta ayuda']]]];
+function showKeys(){
+  const box=el('div',{});
+  KEYS.forEach(([h,rows])=>{box.append(el('h4',{},h));const t=el('table',{class:'kbt'});rows.forEach(([k,d])=>t.append(el('tr',{},el('td',{},...kbLabel(k).split(' / ').flatMap((x,i)=>i?[' / ',el('kbd',{},x)]:[el('kbd',{},x)])),el('td',{},d))));box.append(t);});
+  $('mbox').classList.add('wide');
+  modal('Atajos de teclado',box,[{label:'Cerrar',value:null,cls:'pri'}]).then(()=>{$('mbox').classList.remove('wide');ED().focus({preventScroll:true});restoreSel();});
+  track('format_applied',{kind:'keys_help'});
+}
+// one keydown handler for desktop shortcuts (uses e.code so Alt/Option layouts work)
+ED().addEventListener('keydown',e=>{
+  if(slash.open||e.defaultPrevented)return; // menus and tables already handled this key
+  const mod=e.metaKey||e.ctrlKey,c=e.code;
+  const go=(fn)=>{e.preventDefault();fn();};
+  if(mod&&!e.shiftKey&&!e.altKey&&c==='KeyZ')return go(()=>doUndo(false));
+  if(mod&&((e.shiftKey&&c==='KeyZ')||(!IS_MAC&&c==='KeyY')))return go(()=>doUndo(true));
+  if(mod&&e.altKey&&(c==='Digit1'||c==='Digit2'||c==='Digit0'))return go(()=>{run('formatBlock',c==='Digit1'?'<h2>':c==='Digit2'?'<h3>':'<p>');afterFormat('kb_'+c);});
+  if(mod&&e.shiftKey&&(c==='Digit7'||c==='Digit8'||c==='Digit9'))return go(()=>{cmdList(c==='Digit7'?'ol':c==='Digit8'?'ul':'checklist');afterFormat('kb_list');});
+  if(mod&&e.shiftKey&&c==='KeyX')return go(()=>{run('strikeThrough');afterFormat('strikeThrough');});
+  if(mod&&c==='Backslash')return go(()=>exec('clear'));
+  if(mod&&c==='Slash')return go(showKeys);
+  if(mod&&e.key==='Enter'&&closestInEd('ul.checklist>li'))return go(toggleTask);
+  if(e.altKey&&e.shiftKey&&(c==='ArrowUp'||c==='ArrowDown'))return go(()=>moveBlock(c==='ArrowUp'));
+  if(e.key==='Escape'&&!$('modal').classList.contains('show')){e.preventDefault();ED().blur();toast('Fuera del editor: Tab sigue por la página.');return;}
+  if(e.key==='Tab'&&!mod&&!e.altKey&&!cellOf()){
+    const li=closestInEd('li'),b=currentBlock();
+    if(li||(b&&(e.shiftKey?b.dataset.indent:atBlockStart(b)))){if(indentBlock(e.shiftKey)){e.preventDefault();return;}}
+    if(!e.shiftKey){e.preventDefault();run('insertText','    ');return;}
+  }
+});
+ED().addEventListener('input',e=>{if((e.inputType==='insertText'&&/\s/.test(e.data||''))||e.inputType==='insertParagraph'){
+  if(e.inputType==='insertParagraph'){const b=currentBlock(),prev=b&&b.previousElementSibling;if(prev){const w=document.createTreeWalker(prev,NodeFilter.SHOW_TEXT);let t,last=null;while((t=w.nextNode()))last=t;
+    if(last&&!last.parentNode.closest('a')){const m=last.nodeValue.match(URL_RE);if(m){const s=getSelection(),keep=s.rangeCount?s.getRangeAt(0).cloneRange():null;const r=document.createRange();r.setStart(last,last.nodeValue.length);r.collapse(true);s.removeAllRanges();s.addRange(r);autoLink();if(keep){s.removeAllRanges();s.addRange(keep);}onType();}}}}
+  else{autoLink();onType();}}});
 
 // ── RESIZABLE PANES (desktop): drag, arrow keys, double-click resets; remembered per device ──
 const LAYOUT_DEF={w1:240,w2:300},LIM={w1:[180,420],w2:[220,560]},ED_MIN=380;
