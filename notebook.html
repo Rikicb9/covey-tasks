@@ -5,6 +5,9 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#1E293B"/>
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-notas-192.png"/>
+<link rel="apple-touch-icon" href="./icon-notas-180.png"/>
+<link rel="manifest" href="./manifest-notas.webmanifest"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Notas"/>
 <title>Covey Notas</title>
@@ -12,6 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.6.1 (2026-10-22): app icon (amber "N" note) and web app manifest; long-press
+  the icon on Android for "Nueva nota".
   Notebook v0.6.0 (2026-10-21): also fixes lists created inside a paragraph (<p><ul>), which
   reloaded with blank lines (since v0.3.0; cleaned automatically when a note opens), and
   dialogs without a text field now take keyboard focus so Esc closes them.
@@ -344,7 +349,7 @@ body.resizing{cursor:col-resize;user-select:none}
   <aside id="side">
     <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
     <div id="tree"></div>
-    <div class="ver" id="ver">Notebook v0.6.0 · 2026.10.21</div>
+    <div class="ver" id="ver">Notebook v0.6.1 · 2026.10.22</div>
   </aside>
 
   <div class="rz" id="rz1" role="separator" aria-orientation="vertical" aria-label="Ancho de carpetas" tabindex="0"></div>
@@ -436,7 +441,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.6.0';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.6.1';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
