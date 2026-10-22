@@ -1,0 +1,45 @@
+{
+  "id": "./index.html",
+  "name": "Covey Tasks",
+  "short_name": "Covey Tasks",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#4F46E5",
+  "theme_color": "#1E293B",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "./icon-tasks-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-tasks-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-tasks-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nueva nota",
+      "short_name": "Nueva nota",
+      "url": "./notebook.html?new=1&from=shortcut",
+      "icons": [
+        {
+          "src": "./icon-notas-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
