@@ -15,6 +15,10 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.7.0 (2026-10-22): "📝 Notas" (top-left) takes you home (Inbox, search
+  cleared); Inbox can be renamed (⋯ → Renombrar; synced across devices in your account);
+  Inbox notes listed right under it in the sidebar, newest first, in a block of at least
+  1/3 of the column with its own scroll; notes there can be dragged to a folder.
   Notebook v0.6.1 (2026-10-22): app icon (amber "N" note) and web app manifest; long-press
   the icon on Android for "Nueva nota".
   Notebook v0.6.0 (2026-10-21): also fixes lists created inside a paragraph (<p><ul>), which
@@ -129,7 +133,18 @@ body.resizing{cursor:col-resize;user-select:none}
 .brand{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px;font-weight:600}
 .brand a{color:var(--s400);text-decoration:none;font-size:13px;font-weight:500}
 .brand a:hover{color:#fff}
-#tree{flex:1;overflow:auto;padding:4px 8px 12px}
+#home{border:0;background:none;color:inherit;font:inherit;font-weight:600;padding:6px 8px;margin:-6px -8px;border-radius:8px;cursor:pointer}
+#home:hover{background:var(--s800)}
+#inboxbox{flex:0 0 auto;display:flex;flex-direction:column;padding:4px 8px 0;height:max(34%, 180px);min-height:0;border-bottom:1px solid var(--s800)}
+#inboxbox .frow{flex-shrink:0}
+#inl{flex:1;overflow:auto;overscroll-behavior:contain;list-style:none;margin:2px 0 6px 19px;padding:0 0 0 4px;border-left:1px solid var(--s800)}
+#inl li{padding:6px 8px;border-radius:7px;cursor:pointer;min-height:40px;display:flex;flex-direction:column;justify-content:center}
+#inl li:hover{background:var(--s800)}
+#inl li.on{background:var(--s800);box-shadow:inset 3px 0 var(--a400)}
+#inl .it{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#inl .id{font-size:11px;color:var(--s400)}
+#inl .ie{color:var(--s400);font-size:13px;cursor:default;min-height:0}
+#tree{flex:1;overflow:auto;padding:6px 8px 12px;min-height:0}
 .frow{display:flex;align-items:center;gap:6px;min-height:40px;padding:0 6px 0 8px;border-radius:8px;cursor:pointer;user-select:none}
 .frow:hover{background:var(--s800)}
 .frow.on{background:var(--a500);color:#fff}
@@ -347,9 +362,10 @@ body.resizing{cursor:col-resize;user-select:none}
 <body data-v="list">
 <div id="app">
   <aside id="side">
-    <div class="brand"><span>📝 Notas</span><a href="./index.html">← Tareas</a></div>
+    <div class="brand"><button type="button" id="home" title="Inicio" aria-label="Ir al inicio">📝 Notas</button><a href="./index.html">← Tareas</a></div>
+    <div id="inboxbox"></div>
     <div id="tree"></div>
-    <div class="ver" id="ver">Notebook v0.6.1 · 2026.10.22</div>
+    <div class="ver" id="ver">Notebook v0.7.0 · 2026.10.22</div>
   </aside>
 
   <div class="rz" id="rz1" role="separator" aria-orientation="vertical" aria-label="Ancho de carpetas" tabindex="0"></div>
@@ -441,7 +457,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.6.1';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.7.0';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -532,7 +548,7 @@ async function askText(title,initial=''){
 async function askFolder(title,{exclude=null,topOnly=false,allowRoot=false}={}){
   const sel=el('select');
   if(allowRoot)sel.append(el('option',{value:''},'(Nivel superior)'));
-  else sel.append(el('option',{value:INBOX},'Inbox'));
+  else sel.append(el('option',{value:INBOX},inboxName()));
   tops().forEach(f=>{
     if(f.id===exclude)return;
     sel.append(el('option',{value:f.id},f.name));
@@ -546,8 +562,10 @@ async function askFolder(title,{exclude=null,topOnly=false,allowRoot=false}={}){
 const tops=()=>folders.filter(f=>!f.parent_id).sort(bySort);
 const kids=id=>folders.filter(f=>f.parent_id===id).sort(bySort);
 function bySort(a,b){return a.sort_order-b.sort_order||a.name.localeCompare(b.name,'es');}
-const folderName=id=>id===INBOX||!id?'Inbox':(folders.find(f=>f.id===id)?.name||'Inbox');
-const folderPath=id=>{const f=folders.find(x=>x.id===id);if(!f)return 'Inbox';const p=f.parent_id&&folders.find(x=>x.id===f.parent_id);return p?p.name+' › '+f.name:f.name;};
+let inboxLabel='Inbox';try{inboxLabel=localStorage.getItem('nb-inbox-name')||'Inbox';}catch(e){}
+const inboxName=()=>inboxLabel;
+const folderName=id=>id===INBOX||!id?inboxName():(folders.find(f=>f.id===id)?.name||inboxName());
+const folderPath=id=>{const f=folders.find(x=>x.id===id);if(!f)return inboxName();const p=f.parent_id&&folders.find(x=>x.id===f.parent_id);return p?p.name+' › '+f.name:f.name;};
 const notesIn=id=>notes.filter(n=>(n.folder_id||INBOX)===id);
 const allTags=()=>[...new Set(notes.flatMap(n=>n.tags||[]))].sort((a,b)=>a.localeCompare(b,'es'));
 // ── NOTE BODY: sanitized HTML (old notes may still be Markdown until edited) ──
@@ -627,8 +645,8 @@ function renderTree(){
   const t=$('tree'),sb=$('sbar');
   if(sb.parentNode===t)t.removeChild(sb);
   t.innerHTML='';
-  t.append(folderRow(INBOX,'📥 Inbox',notesIn(INBOX).length,false));
-  if(!isMobile())t.append(sb); // desktop: search sits under Inbox
+  renderInbox();
+  if(!isMobile())t.append(sb); // desktop: search sits under the Inbox block
   t.append(el('div',{class:'sec'},'Carpetas',el('button',{title:'Nueva carpeta',onclick:()=>createFolder(null)},'+')));
   if(!folders.length)t.append(el('div',{class:'empty',style:'color:var(--s400);padding:6px 8px;text-align:left;font-size:13px'},'Aún no hay carpetas.'));
   tops().forEach(f=>{
@@ -649,6 +667,61 @@ function renderTree(){
     tags.forEach(tg=>box.append(el('span',{class:'tagrow'+(curFolder==='tag:'+tg?' on':''),onclick:()=>openFolder('tag:'+tg)},'#'+tg)));
     t.append(box);
   }
+}
+function renderInbox(){
+  const box=$('inboxbox'),keep=$('inl')?.scrollTop||0;box.innerHTML='';
+  const row=folderRow(INBOX,'📥 '+inboxName(),notesIn(INBOX).length,false);
+  row.append(el('button',{class:'mn',title:'Opciones de '+inboxName(),'aria-label':'Opciones de '+inboxName(),onclick:e=>{e.stopPropagation();inboxMenu();}},'⋯'));
+  box.append(row);
+  const ul=el('ul',{id:'inl','aria-label':'Notas en '+inboxName()});
+  const list=notesIn(INBOX).sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+  if(!list.length)ul.append(el('li',{class:'ie'},'Sin notas. Las nuevas aparecerán aquí.'));
+  list.forEach(n=>{
+    const d=getDraft(n.id),title=titleOf(d?d.body:n.body)||'Sin título';
+    const li=el('li',{class:cur&&cur.id===n.id?'on':'',draggable:'true','data-id':n.id,title,onclick:()=>openNote(n.id)},
+      el('span',{class:'it'},title),el('span',{class:'id'},fmtDate(n.updated_at)));
+    li.ondragstart=e=>{e.dataTransfer.setData('text/note-id',n.id);e.dataTransfer.effectAllowed='move';};
+    ul.append(li);
+  });
+  box.append(ul);ul.scrollTop=keep;
+}
+async function inboxMenu(){
+  const act=await modal('📥 '+inboxName(),null,[{label:'Renombrar',value:'rename',cls:'pri'},...(inboxName()!=='Inbox'?[{label:'Volver a “Inbox”',value:'reset'}]:[]),{label:'Cerrar',value:null}]);
+  if(act==='rename'){const n=await askText('Renombrar '+inboxName(),inboxName());if(n)setInboxName(n);}
+  else if(act==='reset')setInboxName('Inbox');
+}
+async function setInboxName(name){
+  name=name.trim().slice(0,40)||'Inbox';const prev=inboxLabel;
+  inboxLabel=name;try{localStorage.setItem('nb-inbox-name',name);}catch(e){}
+  renderAll();
+  try{
+    await ensureSession();
+    const r=await fetch(`${SB_URL}/auth/v1/user`,{method:'PUT',headers:{'Content-Type':'application/json','apikey':SB_ANON,'Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({data:{nb_inbox_name:name}})});
+    if(!r.ok)throw new Error(r.status);
+    track('inbox_renamed');toast('Ahora se llama “'+name+'”.');
+  }catch(e){toast('Guardado en este dispositivo; se sincronizará cuando haya conexión.');pendingInboxSync=true;}
+}
+let pendingInboxSync=false;
+async function loadInboxName(){
+  try{
+    await ensureSession();
+    if(pendingInboxSync){pendingInboxSync=false;return setInboxName(inboxLabel);}
+    const r=await fetch(`${SB_URL}/auth/v1/user`,{headers:{'apikey':SB_ANON,'Authorization':'Bearer '+session.access_token}});
+    if(!r.ok)return;
+    const u=await r.json(),n=u?.user_metadata?.nb_inbox_name;
+    const name=(typeof n==='string'&&n.trim())?n.trim().slice(0,40):'Inbox';
+    if(name!==inboxLabel){inboxLabel=name;try{localStorage.setItem('nb-inbox-name',name);}catch(e){}renderAll();}
+  }catch(e){}
+}
+function goHome(){
+  if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}
+  $('panel').classList.remove('show');
+  if(query){query='';$('q').value='';}
+  curFolder=INBOX;renderTree();renderList();
+  $('inl').scrollTop=0;$('notes').scrollTop=0;
+  if(isMobile())view('list');
+  track('home');
 }
 function folderRow(id,label,count,sub,f){
   const row=el('div',{class:'frow'+(curFolder===id?' on':''),onclick:()=>openFolder(id)},
@@ -732,7 +805,7 @@ function renderList(){
   list.forEach((n,rank)=>{
     const d=getDraft(n.id);
     const body=d?d.body:n.body;
-    const where=searching&&scopeAll?' · '+(n.folder_id?folderPath(n.folder_id):'Inbox'):'';
+    const where=searching&&scopeAll?' · '+(n.folder_id?folderPath(n.folder_id):inboxName()):'';
     const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);}},
       el('div',{class:'t'},titleOf(body)||'Sin título'),
       el('div',{class:'p'},snippet(textOf(body),terms)),
@@ -787,7 +860,7 @@ function renderEditor(){
   $('nonote').hidden=has;$('ed').hidden=!has;$('fmt').hidden=!has;$('tagbox').hidden=!has;
   ['bMove','bHist','bDel'].forEach(b=>$(b).disabled=!has);
   if(!has){hidePalette();closeSlash();['linkchip','bubble','tbar'].forEach(i=>$(i).classList.remove('show'));return;}
-  $('where').textContent=(cur.folder_id?'📁 '+folderPath(cur.folder_id):'📥 Inbox');
+  $('where').textContent=(cur.folder_id?'📁 '+folderPath(cur.folder_id):'📥 '+inboxName());
   const dl=$('taglist');dl.innerHTML='';allTags().filter(t=>!(cur.tags||[]).includes(t)).forEach(t=>dl.append(el('option',{value:t})));
   const chips=$('chips');chips.innerHTML='';
   (cur.tags||[]).forEach(tg=>chips.append(el('span',{class:'chip'},'#'+tg,el('button',{title:'Quitar',onclick:()=>setTags((cur.tags||[]).filter(x=>x!==tg))},'×'))));
@@ -860,6 +933,7 @@ function openNote(id){
   if(cur&&saveTimer){clearTimeout(saveTimer);saveTimer=null;save();} // flush pending edit of previous note
   const n=notes.find(x=>x.id===id);if(!n)return;
   cur={...n};$('panel').classList.remove('show');closeSlash();
+  $('inl')?.querySelectorAll('li').forEach(x=>x.classList.toggle('on',x.dataset.id===id));
   const d=getDraft(id);
   setBody(d?d.body:n.body);
   renderList();renderEditor();
@@ -887,6 +961,7 @@ function onType(){
   putDraft(cur.id,body,cur.version);
   setStatus('saving');scheduleSave();updateEmpty();
   const li=$('notes').querySelector('li.on .t');if(li)li.textContent=titleOf(body)||'Sin título';
+  const si=$('inl')?.querySelector('li.on .it');if(si)si.textContent=titleOf(body)||'Sin título';
 }
 function scheduleSave(ms=SAVE_DELAY){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;save();},ms);}
 async function save(){
@@ -902,7 +977,7 @@ async function save(){
       if(cur&&cur.id===note.id){cur.version=rows[0].version;cur.updated_at=rows[0].updated_at;}
       if(cur&&cur.id===note.id&&getBody()!==body){putDraft(note.id,getBody(),rows[0].version);scheduleSave(300);}
       else{dropDraft(note.id);if(cur&&cur.id===note.id)setStatus('saved');}
-      renderList();
+      renderList();renderInbox();
     }else{await conflict(note.id,body);}
   }catch(e){
     if(!e.status){setStatus('offline');}
@@ -1614,6 +1689,7 @@ $('bHist').onclick=showHistory;
 $('bDel').onclick=deleteNote;
 $('bMove').onclick=async()=>{if(!cur)return;const t=await askFolder('Mover nota a…',{exclude:cur.folder_id||INBOX});if(t)moveNote(cur.id,t,'menu');};
 $('toFolders').onclick=()=>view('folders');
+$('home').onclick=goHome;
 $('where').onclick=()=>$('bMove').click();
 $('toList').onclick=()=>{if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}view('list');renderList();};
 $('tagin').addEventListener('keydown',e=>{
@@ -1660,7 +1736,7 @@ function halt(msg){
   const quick=new URLSearchParams(location.search).has('new');
   try{
     await loadAll();
-    renderAll();placeSearch();
+    renderAll();placeSearch();loadInboxName();
     if(quick){view('note');await newNote();}
     else if(!isMobile()&&listedNotes()[0])openNote(listedNotes()[0].id);
     else view('list');
