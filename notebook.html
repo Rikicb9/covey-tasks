@@ -15,6 +15,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.8.2 (2026-10-23): phone navigation — the system back gesture/button now steps
+  back inside the app (note → list → folders; exits only from folders) and closes an open
+  dialog first; on-screen ← buttons and the gesture share one history, so they always agree.
   Notebook v0.8.1 (2026-10-23): phone — "Nueva nota" is a fixed footer of the folders screen
   (never over the version label, never below the screen); the page itself never scrolls,
   only the folder list does when it doesn't fit. Desktop — note canvas uses the whole pane
@@ -438,7 +441,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.8.1 · 2026.10.23</div>
+    <div class="ver" id="ver">Notebook v0.8.2 · 2026.10.23</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -531,7 +534,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.8.1';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.8.2';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -591,7 +594,46 @@ function setStatus(s){
   const el=$('status');el.className='pill '+s;
   el.textContent={saved:'Guardado',saving:'Guardando…',offline:'Sin conexión',conflict:'Conflicto',error:'Error al guardar'}[s];
 }
-function view(v){document.body.dataset.v=v;}
+// ── PHONE NAVIGATION: each screen level is a browser-history entry, so the system back
+//    gesture (Android swipe / back button, iOS swipe) climbs folders ← list ← note inside the app ──
+const LEVEL={folders:0,list:1,note:2},LEVEL_NAME=['folders','list','note'];
+let navReady=false,pendingPops=0,modalPushed=false,modalCloser=null;const afterPop=[];
+const curView=()=>document.body.dataset.v||'list';
+function whenSettled(fn){if(pendingPops>0)afterPop.push(fn);else fn();}
+function goBack(n){pendingPops++;history.go(-n);}
+function applyView(v){
+  if(curView()==='note'&&v!=='note'&&cur&&saveTimer){clearTimeout(saveTimer);saveTimer=null;save();} // never lose a pending edit
+  document.body.dataset.v=v;
+  if(v!=='note'){closeSlash&&closeSlash();hidePalette&&hidePalette();}
+}
+function view(v){
+  const from=curView();applyView(v);
+  if(!navReady||!isMobile()||v===from)return;
+  const d=LEVEL[v]-LEVEL[from];
+  whenSettled(()=>{
+    if(d>0){for(let l=LEVEL[from]+1;l<=LEVEL[v];l++)history.pushState({nb:LEVEL_NAME[l]},'');}
+    else{const back=Math.min(-d,LEVEL[(history.state&&history.state.nb)||from]);if(back>0)goBack(back);else history.replaceState({nb:v},'');}
+  });
+}
+window.addEventListener('popstate',e=>{
+  const v=(e.state&&e.state.nb)||(isMobile()?'folders':curView());
+  if(pendingPops>0){ // our own history.go(): the screen is already right
+    pendingPops--;
+    if(!pendingPops)afterPop.splice(0).forEach(fn=>fn());
+    return;
+  }
+  if(!isMobile())return;
+  if(modalCloser){const c=modalCloser;modalCloser=null;modalPushed=false;c();return;} // back closes the open dialog first
+  applyView(v);
+  if(v==='list')renderList();
+  track('nav_back',{to:v});
+});
+function startNav(quick){ // phones: base entry = folders, then list (+ note for quick capture)
+  if(!isMobile()){navReady=true;return;}
+  history.replaceState({nb:'folders'},'');
+  history.pushState({nb:'list'},'');
+  navReady=true;
+}
 function el(tag,attrs={},...kids){
   const n=document.createElement(tag);
   for(const[k,v]of Object.entries(attrs)){if(k==='class')n.className=v;else if(k.startsWith('on'))n[k]=v;else if(v!=null)n.setAttribute(k,v);}
@@ -607,10 +649,15 @@ function modal(title,content,buttons){
     buttons.forEach(b=>row.append(el('button',{class:'btn '+(b.cls||''),onclick:()=>{close();res(b.value);}},b.label)));
     box.append(row);
     $('modal').classList.add('show');
+    if(navReady&&isMobile())whenSettled(()=>{if($('modal').classList.contains('show')&&!modalPushed){history.pushState({nb:curView(),modal:true},'');modalPushed=true;}});
+    modalCloser=()=>{close(true);res(null);};
     const inp=box.querySelector('input,select');setTimeout(()=>(inp||box.querySelector('.btn.pri')||box.querySelector('.btn'))?.focus(),30);
     // preventDefault: otherwise the Enter keystroke lands in the editor once focus returns to it
     box.onkeydown=e=>{if(e.key==='Enter'&&inp&&inp.tagName==='INPUT'){e.preventDefault();close();res(buttons.find(b=>b.cls==='pri')?.value);}if(e.key==='Escape'){e.preventDefault();close();res(null);}};
-    function close(){$('modal').classList.remove('show');}
+    function close(fromBack){
+      $('modal').classList.remove('show');modalCloser=null;
+      if(!fromBack&&modalPushed){modalPushed=false;goBack(1);} // remove the dialog's history entry
+    }
   });
 }
 async function askText(title,initial=''){
@@ -1895,7 +1942,7 @@ $('tagin').addEventListener('blur',()=>{setTimeout(()=>{if(document.activeElemen
 $('toFolders').onclick=()=>view('folders');
 $('home').onclick=goHome;
 $('where').onclick=moveCurrent;
-$('toList').onclick=()=>{if(saveTimer){clearTimeout(saveTimer);saveTimer=null;save();}view('list');renderList();};
+$('toList').onclick=()=>{view('list');renderList();};
 $('tagin').addEventListener('keydown',e=>{
   if((e.key==='Enter'||e.key===',')&&$('tagin').value.trim()){e.preventDefault();setTags([...(cur.tags||[]),$('tagin').value]);$('tagin').value='';}
   else if(e.key==='Escape'){e.preventDefault();$('tagin').value='';$('tagbox').classList.remove('adding');$('ttl').focus();}
@@ -1942,6 +1989,7 @@ function halt(msg){
   try{
     await loadAll();
     renderAll();placeSearch();loadInboxName();
+    startNav(quick);
     if(quick){view('note');await newNote();}
     else if(!isMobile()&&listedNotes()[0])openNote(listedNotes()[0].id);
     else view('list');
