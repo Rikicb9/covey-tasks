@@ -13,6 +13,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Covey Tasks"/>
+<script>/* iOS installed app (V3.8.1 / v0.9.2): iOS draws the page under the status bar but gives it a height that is short by the status-bar height, leaving a blank band at the bottom. Use the real screen height instead. */
+(function(){if(!navigator.standalone)return;var d=document.documentElement;
+function fix(){var p=matchMedia('(orientation: portrait)').matches,full=p?Math.max(screen.width,screen.height):Math.min(screen.width,screen.height);
+d.style.setProperty('--app-h',Math.max(innerHeight,full)+'px');}
+fix();addEventListener('resize',fix);addEventListener('orientationchange',function(){setTimeout(fix,300);});})();</script>
 <meta name="description" content="Gestión de tareas con Matriz de Covey"/>
 <title>Covey Tasks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -20,8 +25,8 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:smooth;}
-html,body{height:100%;overflow:hidden;}
-body{background:#E2E8F0;display:flex;align-items:stretch;justify-content:stretch;height:100dvh;font-family:'DM Sans',system-ui,sans-serif;}
+html,body{height:var(--app-h,100%);overflow:hidden;}
+body{background:#E2E8F0;display:flex;align-items:stretch;justify-content:stretch;height:var(--app-h,100dvh);font-family:'DM Sans',system-ui,sans-serif;}
 :root{
   --s900:#1E293B;--s800:#334155;--s500:#64748B;--s400:#94A3B8;
   --s300:#CBD5E1;--s200:#E2E8F0;--s100:#F1F5F9;--s50:#F8FAFC;
@@ -44,7 +49,7 @@ body{background:#E2E8F0;display:flex;align-items:stretch;justify-content:stretch
   /* Touch target minimum (WCAG 2.5.5) */
   --touch-min: 44px;
 }
-#root{display:flex;height:100dvh;width:100vw;font-family:var(--fn);font-size:var(--text-base);background:var(--s50);border:none;border-radius:0;overflow:hidden;position:relative;}
+#root{display:flex;height:var(--app-h,100dvh);width:100vw;font-family:var(--fn);font-size:var(--text-base);background:var(--s50);border:none;border-radius:0;overflow:hidden;position:relative;}
 #sync-strip{display:flex;align-items:center;gap:6px;padding:6px 14px;background:var(--s900);flex-shrink:0;}
 #sync-strip-title{font-size:var(--text-base);font-weight:700;color:#fff;flex:1;}
 
@@ -726,9 +731,9 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
 
   /* Sidebar → horizontal pill bar above tabs */
   #sidebar{
-    width:100%;height:44px;
+    width:100%;height:calc(44px + env(safe-area-inset-top));box-sizing:border-box;flex-shrink:0;
     flex-direction:row;align-items:center;
-    padding:0 8px;gap:4px;
+    padding:env(safe-area-inset-top) 8px 0;gap:4px; /* V3.8.1: clear the iPhone status bar */
     order:-1;
     overflow-x:auto;overflow-y:hidden;
     -webkit-overflow-scrolling:touch;
@@ -853,7 +858,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
   .mx-unclass-del{opacity:1 !important;}
   /* Version badge: top-right in the sidebar pill bar on mobile */
   #version-badge{
-    top:0 !important;
+    top:env(safe-area-inset-top) !important;
     right:8px !important;
     bottom:auto !important;
     left:auto !important;
@@ -1050,7 +1055,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
           <div id="mx-unclassified-list"></div>
         </div>
       </div>
-      <div id="version-badge">V3.8.0 · 2026.10.22</div>
+      <div id="version-badge">V3.8.1 · 2026.10.24</div>
     </div>
   </div>
 </div>
@@ -1146,6 +1151,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
 </div>
 
 <script>
+// CHANGELOG V3.8.1 (2026-10-24): iPhone installed app — blank band at the bottom fixed (iOS gave the page a height short by the status bar; uses the real screen height); list bar no longer sits under the status bar.
 // CHANGELOG V3.8.0 (2026-10-22): matrix — "Nueva tarea" moved under the matrix (was hidden behind the phone's bottom bar in the installed app); "Sin clasificar" gets ≥ 1/3 of the screen on phones and scrolls on its own.
 // CHANGELOG V3.7.0 (2026-10-22): app icon (indigo "T" + check), web app manifest; installs/home-screen shortcuts show the icon.
 // CHANGELOG V3.6.1 (2026-10-21): notebook links point to fresh URLs (?from=covey) so browsers drop stale cached copies.
