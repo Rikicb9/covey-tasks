@@ -20,6 +20,9 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.9.8 (2026-10-27): share a note (⋯ → Compartir…) as a copy anyone can open — text through the
+  phone's share menu (WhatsApp, mail…) or the clipboard; formatted copy for mail/Docs/Word; PDF via the
+  print dialog (images included). Nothing is published and no other account gets access to the notebook.
   Notebook v0.9.7 (2026-10-26): desktop note header has one line less — the top bar is gone: the save status
   sits after "Editada …" under the title, and full screen / pin / history / ⋯ sit at the right of the
   formatting toolbar (so they stay reachable in the compact header, with a small status dot). Phones keep
@@ -339,6 +342,25 @@ body.resizing{cursor:col-resize;user-select:none}
 .pinm{color:#B45309;margin-right:5px;vertical-align:-1px;display:inline-flex}
 #bPin.on{color:#B45309;background:#FEF3C7}
 #bPin[hidden],#bFocus[hidden]{display:none}
+#printArea{display:none}
+@media print{
+  body.printing>*:not(#printArea){display:none!important}
+  body.printing #printArea{display:block;font:12pt/1.6 var(--fn);color:#000;padding:0}
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  #printArea h1{font-size:22pt;margin:0 0 14pt;letter-spacing:-.01em}
+  #printArea .pbody p,#printArea .pbody div{margin:0 0 6pt}
+  #printArea div.float{position:static!important;border:1px solid #ddd;border-radius:8px;padding:8pt 10pt;margin:8pt 0;break-inside:avoid}
+  #printArea div.float.pic{border:0;padding:0;max-width:100%}
+  #printArea div.float.pic img{width:100%}
+  #printArea img{max-width:100%;height:auto;border-radius:6px;break-inside:avoid}
+  #printArea ul.checklist{list-style:none;padding-left:1.2em}
+  #printArea ul.checklist>li::before{content:'☐ ';margin-left:-1.2em}
+  #printArea ul.checklist>li[data-done=true]::before{content:'☑ '}
+  #printArea ul.checklist>li[data-done=true]{text-decoration:line-through;color:#666}
+  #printArea table{border-collapse:collapse}#printArea td,#printArea th{border:1px solid #ccc;padding:4pt 6pt}
+  #printArea div.callout{border:1px solid #ddd;border-radius:8px;padding:8pt 10pt;background:#f7f7f7}
+  #printArea [data-indent="1"]{margin-left:2em}#printArea [data-indent="2"]{margin-left:4em}#printArea [data-indent="3"]{margin-left:6em}
+}
 #ed h1,#ed h2,#ed h3{margin:.7em 0 .3em;line-height:1.25;color:var(--ink);letter-spacing:-.01em}
 #ed h1{font-size:1.5em}#ed h2{font-size:1.25em}#ed h3{font-size:1.1em}
 #ed ul,#ed ol{padding-left:1.5em;margin:.3em 0}
@@ -577,7 +599,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.9.7 · 2026.10.26</div>
+    <div class="ver" id="ver">Notebook v0.9.8 · 2026.10.27</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -657,6 +679,7 @@ body.resizing{cursor:col-resize;user-select:none}
 </div>
 
 <div id="modal"><div id="mbox"></div></div>
+<div id="printArea" aria-hidden="true"></div>
 <div id="toast"></div>
 <div id="palette" role="dialog" aria-label="Colores"></div>
 <button id="linkchip" type="button">↗ Abrir enlace</button>
@@ -680,7 +703,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.9.7';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.9.8';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -808,7 +831,9 @@ const MI={pin:'<path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l1.79 1.8A2 2 0 0 1
   sub:'<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   reset:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   note:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>',
-  chev:'<path d="m9 18 6-6-6-6"/>',keys:'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',top:'<path d="m18 15-6-6-6 6"/>',search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'};
+  chev:'<path d="m9 18 6-6-6-6"/>',share:'<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/>',
+  send:'<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',copy:'<rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  pdf:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/>',keys:'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',top:'<path d="m18 15-6-6-6 6"/>',search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'};
 // opts.kind: 'menu' (list of actions) | 'pick' (content resolves via opts.bind) ; opts.anchor: desktop popover position;
 // opts.sub / opts.badge: header of the phone sheet. Phones: every dialog is a bottom sheet (swipe down, tap outside or back closes).
 function modal(title,content,buttons,opts={}){
@@ -1243,11 +1268,12 @@ async function noteMenu(id,anchor){
   const n=notes.find(x=>x.id===id);if(!n)return;
   const act=await modal(displayTitle(n),null,[
     ...(pinOff?[]:[{label:n.pinned?'Desfijar':'Fijar arriba',value:'pin',icon:n.pinned?'unpin':'pin'}]),
-    {label:'Mover a…',value:'move',icon:'move',more:true},{label:'Duplicar',value:'dup',icon:'dup'},...(isMobile()?[]:[{label:'Atajos de teclado',value:'keys',icon:'keys'}]),{label:'Borrar nota',value:'del',icon:'del',cls:'dng'}],
+    {label:'Mover a…',value:'move',icon:'move',more:true},{label:'Compartir…',value:'share',icon:'share',more:true},{label:'Duplicar',value:'dup',icon:'dup'},...(isMobile()?[]:[{label:'Atajos de teclado',value:'keys',icon:'keys'}]),{label:'Borrar nota',value:'del',icon:'del',cls:'dng'}],
     {kind:'menu',anchor,sub:n.folder_id?folderPath(n.folder_id):inboxName()});
   if(act==='move'){const t=await askFolder('Mover a…',{current:n.folder_id||INBOX});if(t)moveNote(id,t,'card_menu');}
   else if(act==='pin')togglePin(id);
   else if(act==='keys')showKeys();
+  else if(act==='share')shareNote(id,anchor);
   else if(act==='dup')duplicateNote(id);
   else if(act==='del')deleteNote(id);
 }
@@ -1262,6 +1288,79 @@ async function togglePin(id){
     n.pinned=v;if(cur&&cur.id===id)cur.pinned=v;
     track('note_pinned',{pinned:v});toast(v?'Fijada arriba.':'Ya no está fijada.');renderAll();
   }catch(e){toast(e.status?'No se pudo fijar la nota.':'Sin conexión: no se fijó.');}
+}
+// ── SHARE (v0.9.8): the note leaves the app only as a copy the user sends — text, formatted copy or PDF.
+//    Nothing is published and no other account gets access (gate (c): Ricard stays the only user). ──
+function shareDoc(id){ // latest content: the editor if it's the open note, else the saved/draft copy
+  const n=notes.find(x=>x.id===id);if(!n)return null;
+  if(cur&&cur.id===id)return {title:getTitle()||displayTitle(n),html:getBody()};
+  const d=docOf(n);return {title:d.title.trim()||displayTitle(n),html:toHTML(d.body)};
+}
+function noteToText(title,html){ // readable anywhere: bullets, numbers, ☐/☑, tables as rows
+  const doc=new DOMParser().parseFromString('<body>'+html+'</body>','text/html');const out=[];
+  const inl=n=>n.textContent.replace(/ /g,' ').replace(/[ \t]+/g,' ').trim();
+  function blk(n,depth){
+    [...n.children].forEach(c=>{const t=c.tagName,pad='  '.repeat(depth);
+      if(t==='UL'||t==='OL'){let i=+(c.getAttribute('start')||1);const cl=c.classList.contains('checklist');
+        [...c.children].forEach(li=>{if(li.tagName==='LI'){const own=[...li.childNodes].filter(x=>!(x.nodeType===1&&/^(UL|OL)$/.test(x.tagName)));
+            const txt=own.map(x=>x.textContent).join('').replace(/ /g,' ').replace(/\s+/g,' ').trim();
+            out.push(pad+(t==='OL'?(i++)+'. ':cl?(li.getAttribute('data-done')==='true'?'☑ ':'☐ '):'• ')+txt);
+            blk(li,depth+1);}
+          else if(/^(UL|OL)$/.test(li.tagName))blk({children:[li]},depth+1);});}
+      else if(t==='TABLE')c.querySelectorAll('tr').forEach(tr=>out.push(pad+[...tr.children].map(inl).join(' | ')));
+      else if(t==='HR')out.push('———');
+      else if(t==='IMG')out.push('[imagen]');
+      else if(t==='DIV'){if(c.classList.contains('pic'))out.push('[imagen]');else{blk(c,depth);}}
+      else if(t==='BLOCKQUOTE'){inl(c)&&out.push('> '+inl(c));}
+      else{const x=inl(c);const ind='  '.repeat(+(c.getAttribute('data-indent')||0));out.push(x?pad+ind+x:'');}
+    });}
+  blk(doc.body,0);
+  return (title?title+'\n\n':'')+out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+function shareHTML(title,html){ // formatted copy for mail/Docs/Word: images left out (they live in your private storage)
+  const doc=new DOMParser().parseFromString('<body>'+html+'</body>','text/html');
+  doc.querySelectorAll('div.pic,img').forEach(x=>{const i=doc.createElement('p');i.textContent='[imagen]';x.replaceWith(i);});
+  doc.querySelectorAll('div.float').forEach(f=>{f.removeAttribute('data-x');f.removeAttribute('data-y');f.removeAttribute('data-w');});
+  return '<h1>'+esc(title)+'</h1>'+doc.body.innerHTML;
+}
+async function shareNote(id,anchor){
+  const d=shareDoc(id);if(!d)return;
+  const canShare=!!navigator.share;
+  const act=await modal('Compartir “'+d.title+'”',null,[
+    {label:canShare?'Enviar como texto…':'Copiar como texto',value:'text',icon:'send'},
+    {label:'Copiar con formato',value:'rich',icon:'copy'},
+    {label:'PDF (imprimir o guardar)',value:'pdf',icon:'pdf'}],
+    {kind:'menu',anchor:anchor&&anchor.isConnected?anchor:null,sub:'Se envía una copia: nadie más tiene acceso a tus notas',badge:el('span',{class:'mbadge'},svgIcon(MI.share,16,2))});
+  if(!act)return;
+  const text=noteToText(d.title,d.html);
+  if(act==='text'){
+    if(canShare){try{await navigator.share({title:d.title,text});track('note_shared',{method:'share_text'});}catch(e){if(e.name!=='AbortError')toast('No se pudo abrir el menú de compartir.');}return;}
+    try{await navigator.clipboard.writeText(text);toast('Texto copiado: pégalo donde quieras.');track('note_shared',{method:'copy_text'});}catch(e){toast('No se pudo copiar.');}
+    return;
+  }
+  if(act==='rich'){
+    const html=shareHTML(d.title,d.html);
+    try{
+      if(window.ClipboardItem&&navigator.clipboard.write)await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([text],{type:'text/plain'})})]);
+      else await navigator.clipboard.writeText(text);
+      toast('Copiada con formato: pégala en un correo o documento.');track('note_shared',{method:'copy_rich'});
+    }catch(e){toast('No se pudo copiar.');}
+    return;
+  }
+  if(act==='pdf')printNote(d);
+}
+async function printNote(d){ // the browser's print dialog → "Guardar como PDF" (or a printer); only the note is printed
+  const area=$('printArea');area.innerHTML='';
+  area.append(el('h1',{},d.title));
+  const body=el('div',{class:'pbody'});body.innerHTML=sanitize(d.html);area.append(body);
+  body.querySelectorAll('div.float.pic').forEach(f=>{f.style.width=(+f.dataset.w||420)+'px';}); // the size you gave it
+  await Promise.all([...body.querySelectorAll('img[data-img]')].map(im=>fetchImage(im.getAttribute('data-img')).then(u=>new Promise(r=>{im.onload=im.onerror=r;im.src=u;})).catch(()=>{im.replaceWith(Object.assign(document.createElement('p'),{textContent:'[imagen no disponible]'}));})));
+  const t=document.title;document.title=d.title.replace(/[\\/:*?"<>|]+/g,' ').slice(0,80)||'Nota';
+  document.body.classList.add('printing');
+  const done=()=>{document.body.classList.remove('printing');document.title=t;area.innerHTML='';removeEventListener('afterprint',done);};
+  addEventListener('afterprint',done);
+  track('note_shared',{method:'pdf'});
+  setTimeout(()=>{window.print();setTimeout(()=>{if(!matchMedia('print').matches&&document.body.classList.contains('printing'))done();},1500);},50);
 }
 function withCopySuffix(body){
   if(!isHTML(body)){const ls=(body||'').split('\n');const i=ls.findIndex(l=>l.trim());if(i<0)return body;ls[i]=ls[i]+' (copia)';return ls.join('\n');}
