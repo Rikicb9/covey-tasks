@@ -20,6 +20,10 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.9.7 (2026-10-26): desktop note header has one line less — the top bar is gone: the save status
+  sits after "Editada …" under the title, and full screen / pin / history / ⋯ sit at the right of the
+  formatting toolbar (so they stay reachable in the compact header, with a small status dot). Phones keep
+  their top bar with the ← back button.
   Notebook v0.9.6 (2026-10-26): condensed header = formatting toolbar only (title/tags hidden while you write
   further down). Focus mode (desktop): button in the note bar or Ctrl/⌘+Shift+Enter hides the main menu and
   the note list; Esc or the same button brings them back.
@@ -285,7 +289,7 @@ body.resizing{cursor:col-resize;user-select:none}
   margin:-28px calc(-1 * clamp(24px,2.5vw,40px)) 0;padding:28px clamp(24px,2.5vw,40px) 4px}
 #ehead[hidden]{display:none}
 #ehead.stuck{padding-top:10px;padding-bottom:10px;gap:8px;box-shadow:0 1px 0 var(--line),0 8px 14px -10px rgba(28,25,23,.18)}
-#ehead.stuck .thead:not(:focus-within),#ehead.stuck #edited{display:none} /* condensed: only the toolbar */
+#ehead.stuck .thead:not(:focus-within),#ehead.stuck #emeta{display:none} /* condensed: only the toolbar */
 /* title row: title left, folder + tags right */
 .thead{display:flex;align-items:center;gap:12px;flex-wrap:nowrap}
 .thead[hidden]{display:none}
@@ -302,7 +306,26 @@ body.resizing{cursor:col-resize;user-select:none}
 .addtag:hover{color:var(--ink);border-color:var(--faint)}
 #tagin{border:1px solid var(--acc);outline:0;background:var(--paper);border-radius:99px;width:150px;min-height:30px;font-size:13px;padding:0 10px;display:none}
 .tags.adding #tagin{display:inline-block}.tags.adding .addtag{display:none}
-#edited{font-size:12px;color:var(--mut);margin-top:-6px}
+#emeta{display:flex;align-items:center;gap:8px;margin-top:-6px;min-height:20px}
+#edited{font-size:12px;color:var(--mut)}
+#emeta .pill{font-size:11px;padding:2px 8px}
+/* v0.9.7 desktop: no separate top bar — status next to "Editada…", note actions on the toolbar row */
+#fbar{display:flex;align-items:center;gap:6px}
+#fbar #fmt{min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} /* always one line; scrolls sideways if the pane is narrow */
+#fbar #fmt::-webkit-scrollbar{display:none}
+#fbar #fmt.ovf{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+#actsSlot{margin-left:auto;display:flex;flex-shrink:0}
+.eacts{display:inline-flex;align-items:center;gap:2px}
+.sdot{display:none;width:8px;height:8px;border-radius:99px;margin:0 8px 0 4px;background:var(--ok)}
+.sdot.saving{background:var(--line2)}.sdot.offline{background:#D97706}.sdot.conflict,.sdot.error{background:var(--red)}
+#ehead.stuck .sdot{display:inline-block}
+@media (min-width:821px){
+  .etool{display:none}
+  #fbar .fb.keys{display:none} /* shortcuts help moves to ⋯ (and Ctrl/⌘+/) so toolbar + actions fit one line */
+  .eacts .iconbtn{min-width:32px;min-height:32px;border-radius:8px}
+  #fbar .fb{min-width:29px}
+  .eacts{gap:0}
+}
 #edited[hidden]{display:none}
 /* rich-text editor */
 #ed{flex:1 0 auto;min-height:50dvh;outline:0;font:16px/1.7 var(--fn);color:var(--ink2);word-wrap:break-word;position:relative;caret-color:var(--acc)}
@@ -554,7 +577,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.9.6 · 2026.10.26</div>
+    <div class="ver" id="ver">Notebook v0.9.7 · 2026.10.26</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -576,11 +599,13 @@ body.resizing{cursor:col-resize;user-select:none}
     <div class="etool">
       <button class="iconbtn back" id="toList" aria-label="Volver"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
       <span class="pill saved" id="status">Guardado</span>
-      <span class="grow"></span>
+      <span class="grow" id="egrow"></span>
+      <span class="eacts" id="eacts"><span class="sdot saved" id="sdot" role="status" title="Guardado" aria-label="Guardado"></span>
       <button class="iconbtn" id="bFocus" title="Pantalla completa" aria-label="Pantalla completa" aria-pressed="false"><svg class="i-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg><svg class="i-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg></button>
       <button class="iconbtn" id="bPin" title="Fijar arriba" aria-label="Fijar arriba" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l1.79 1.8A2 2 0 0 1 17.38 14H6.62a2 2 0 0 1 .59-1.44z"/><path d="M8 2h8"/></svg></button>
       <button class="iconbtn" id="bHist" title="Historial" aria-label="Historial"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></button>
       <button class="iconbtn" id="bMore" title="Más opciones" aria-label="Más opciones de la nota"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+      </span>
     </div>
     <div id="ebody">
       <div id="nonote">Elige una nota o crea una nueva.</div>
@@ -595,8 +620,9 @@ body.resizing{cursor:col-resize;user-select:none}
           <datalist id="taglist"></datalist>
         </div>
       </div>
-      <div id="edited" hidden></div>
+      <div id="emeta"><div id="edited" hidden></div><span id="statusSlot"></span></div>
       <input type="file" id="imgpick" accept="image/*" multiple hidden aria-hidden="true" tabindex="-1"/>
+      <div id="fbar">
       <div id="fmt" role="toolbar" aria-label="Formato del texto" hidden>
         <button class="fb" data-cmd="insert" title="Insertar (o escribe «/»)" aria-label="Insertar bloque">＋</button>
         <button class="fb" data-cmd="undo" data-kb="Mod+Z" title="Deshacer" aria-label="Deshacer">↶</button>
@@ -620,6 +646,8 @@ body.resizing{cursor:col-resize;user-select:none}
         <span class="fsep"></span>
         <button class="fb" data-cmd="clear" data-kb="Mod+\\" title="Quitar formato" aria-label="Quitar formato" style="font-size:14px">T<sub>×</sub></button>
         <button class="fb keys" data-cmd="keys" data-kb="Mod+/" title="Atajos de teclado" aria-label="Atajos de teclado">⌨</button>
+      </div>
+      <span id="actsSlot"></span>
       </div>
       </div><!-- /ehead -->
       <div class="panel" id="panel"></div>
@@ -652,7 +680,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.9.6';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.9.7';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -711,6 +739,7 @@ function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block'
 function setStatus(s){
   const el=$('status');el.className='pill '+s;
   el.textContent={saved:'Guardado',saving:'Guardando…',offline:'Sin conexión',conflict:'Conflicto',error:'Error al guardar'}[s];
+  const d=$('sdot');if(d){d.className='sdot '+s;d.title=el.textContent;d.setAttribute('aria-label',el.textContent);}
 }
 // ── PHONE NAVIGATION (v0.9.3): history is the real path you took. Every screen you open adds one entry
 //    holding what it showed ({nb:view, d:depth, folder}); back — system gesture/button or the on-screen ← —
@@ -779,7 +808,7 @@ const MI={pin:'<path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l1.79 1.8A2 2 0 0 1
   sub:'<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   reset:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   note:'<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>',
-  chev:'<path d="m9 18 6-6-6-6"/>',top:'<path d="m18 15-6-6-6 6"/>',search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'};
+  chev:'<path d="m9 18 6-6-6-6"/>',keys:'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',top:'<path d="m18 15-6-6-6 6"/>',search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'};
 // opts.kind: 'menu' (list of actions) | 'pick' (content resolves via opts.bind) ; opts.anchor: desktop popover position;
 // opts.sub / opts.badge: header of the phone sheet. Phones: every dialog is a bottom sheet (swipe down, tap outside or back closes).
 function modal(title,content,buttons,opts={}){
@@ -1214,10 +1243,11 @@ async function noteMenu(id,anchor){
   const n=notes.find(x=>x.id===id);if(!n)return;
   const act=await modal(displayTitle(n),null,[
     ...(pinOff?[]:[{label:n.pinned?'Desfijar':'Fijar arriba',value:'pin',icon:n.pinned?'unpin':'pin'}]),
-    {label:'Mover a…',value:'move',icon:'move',more:true},{label:'Duplicar',value:'dup',icon:'dup'},{label:'Borrar nota',value:'del',icon:'del',cls:'dng'}],
+    {label:'Mover a…',value:'move',icon:'move',more:true},{label:'Duplicar',value:'dup',icon:'dup'},...(isMobile()?[]:[{label:'Atajos de teclado',value:'keys',icon:'keys'}]),{label:'Borrar nota',value:'del',icon:'del',cls:'dng'}],
     {kind:'menu',anchor,sub:n.folder_id?folderPath(n.folder_id):inboxName()});
   if(act==='move'){const t=await askFolder('Mover a…',{current:n.folder_id||INBOX});if(t)moveNote(id,t,'card_menu');}
   else if(act==='pin')togglePin(id);
+  else if(act==='keys')showKeys();
   else if(act==='dup')duplicateNote(id);
   else if(act==='del')deleteNote(id);
 }
@@ -2144,6 +2174,16 @@ function placeBubble(){
   b.style.top=(top>8&&!hitsBar?top:r.bottom+8)+'px';
 }
 
+// ── NOTE CHROME (v0.9.7): desktop puts the save status under the title and the note actions on the toolbar row;
+//    phones keep the top bar (← back, status, actions) ──
+function placeChrome(){
+  const m=isMobile(),st=$('status'),ac=$('eacts');
+  if(m){if(st.parentNode!==$('toList').parentNode){$('toList').after(st);$('egrow').after(ac);}}
+  else if(st.parentNode!==$('statusSlot')){$('statusSlot').append(st);$('actsSlot').append(ac);}
+}
+new ResizeObserver(()=>{const f=$('fmt');f.classList.toggle('ovf',!isMobile()&&f.scrollWidth>f.clientWidth+1&&f.scrollLeft+f.clientWidth<f.scrollWidth-2);}).observe($('fbar'));
+$('fmt').addEventListener('scroll',()=>{const f=$('fmt');f.classList.toggle('ovf',f.scrollLeft+f.clientWidth<f.scrollWidth-2);},{passive:true});
+placeChrome();matchMedia('(max-width:820px)').addEventListener('change',()=>{placeChrome();window.updHead&&updHead();});
 // ── NOTE HEADER (desktop): sticky; condensed once you scroll into the text ──
 (function(){const body=$('ebody'),head=$('ehead');let on=false;
   const upd=()=>{if(isMobile()){if(on){on=false;head.classList.remove('stuck');body.style.scrollPaddingTop='';}return;}
