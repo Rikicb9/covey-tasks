@@ -20,6 +20,9 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.9.4 (2026-10-26): Backspace at the start of a line removes its formatting step by step
+  before joining lines — list item: one level out, then a plain paragraph (the rest stays a list);
+  indented line: one indent level less. Works on phone keyboards too (input event).
   Notebook v0.9.3 (2026-10-24): phone navigation rebuilt on the real path: back (gesture or ←) always
   returns to the exact previous screen (e.g. a note opened from the Inbox list on the folders screen goes
   back to folders, not to whatever folder was last open). Nothing stays highlighted on the phone's
@@ -531,7 +534,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.9.3 · 2026.10.24</div>
+    <div class="ver" id="ver">Notebook v0.9.4 · 2026.10.26</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -626,7 +629,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.9.3';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.9.4';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -884,6 +887,7 @@ function sanitize(html,{keepColors=true}={}){
       }
       if(tag==='A'){const h=(ch.getAttribute('href')||'').trim();if(/^(https?:\/\/|mailto:)/i.test(h))keep.href=h;}
       if(tag==='UL'&&ch.classList.contains('checklist'))keep.class='checklist';
+      if(tag==='OL'){const n=Math.round(+ch.getAttribute('start'));if(n>1&&n<10000)keep.start=String(n);} // numbering that continues after a split
       if(/^(P|H1|H2|H3)$/.test(tag)){const n=+ch.getAttribute('data-indent');if(n>=1&&n<=6)keep['data-indent']=String(Math.round(n));}
       if(tag==='DIV'&&keepColors){ // own blocks only (never from pasted content)
         const int=v=>{const n=Math.round(+v);return Number.isFinite(n)?String(Math.min(Math.max(n,0),20000)):null;};
@@ -2128,6 +2132,7 @@ ED().addEventListener('keydown',e=>{
     let n=cells[i+(e.shiftKey?-1:1)];
     if(!n&&!e.shiftKey){pushCustom();const tr=c.parentNode,row=document.createElement('tr');[...tr.children].forEach(()=>{const d=document.createElement('td');d.innerHTML='<br>';row.append(d);});tr.after(row);n=row.children[0];onType();}
     if(n)caretInto(n);return;}}
+  if(e.key==='Backspace'&&!e.shiftKey&&!(e.ctrlKey||e.metaKey||e.altKey)&&backAtStart()){e.preventDefault();return;}
   if(e.key==='Backspace'&&s.rangeCount&&s.isCollapsed){
     const box=closestInEd('div.float,div.callout');
     if(box){const first=contentKids(box)[0];
@@ -2185,6 +2190,48 @@ function indentBlock(out){
   const n=+(b.dataset.indent||0),m=Math.max(0,Math.min(6,n+(out?-1:1)));if(m===n)return false;
   pushCustom();if(m)b.dataset.indent=m;else b.removeAttribute('data-indent');afterFormat(out?'outdent':'indent');return true;
 }
+// Backspace at the start of a line undoes its formatting one step at a time before joining lines (v0.9.4):
+// list item → outdent one level, then plain paragraph; indented paragraph/heading → one indent level less.
+function backAtStart(){
+  const s=getSelection();if(!s.rangeCount||!s.isCollapsed||!inEditor(s.anchorNode))return false;
+  const li=closestInEd('li');
+  if(li&&atBlockStart(li)){
+    const list=li.parentNode,up=list.parentNode,nested=up&&(up.tagName==='LI'||up.tagName==='UL'||up.tagName==='OL');
+    pushCustom();
+    if(nested)outdentLi(li);else liToPara(li);
+    afterFormat('back_unformat');return true;
+  }
+  const b=currentBlock();
+  if(b&&/^(P|H1|H2|H3)$/.test(b.tagName)&&+(b.dataset.indent||0)>0&&atBlockStart(b)){
+    pushCustom();const m=+b.dataset.indent-1;if(m)b.dataset.indent=m;else b.removeAttribute('data-indent');
+    afterFormat('back_outdent');return true;
+  }
+  return false;
+}
+function outdentLi(li){ // one level out, for both nestings: <li>x<ul>…</ul></li> and Chrome's <ul><li>x</li><ul>…</ul></ul>
+  const list=li.parentNode,up=list.parentNode,items=[...list.children],i=items.indexOf(li),rest=items.slice(i+1);
+  if(rest.length){const sub=list.cloneNode(false);rest.forEach(x=>sub.append(x));li.append(sub);} // what followed stays nested under it
+  if(up.tagName==='LI'){up.after(li);}else{list.after(li);}
+  if(!list.children.length)list.remove();
+  if(li.parentNode.classList.contains('checklist')&&!li.hasAttribute('data-done'))li.setAttribute('data-done','false');
+  if(!li.parentNode.classList.contains('checklist'))li.removeAttribute('data-done');
+  caretInto(li);
+}
+function liToPara(li){ // a top-level list item becomes a paragraph in place; the items after it stay a list
+  const list=li.parentNode,items=[...list.children],i=items.indexOf(li);
+  const subs=[...li.children].filter(c=>/^(UL|OL)$/.test(c.tagName));
+  const p=document.createElement('p');
+  [...li.childNodes].forEach(n=>{if(!subs.includes(n))p.append(n);});
+  if(!p.textContent&&!p.querySelector('br,img'))p.innerHTML='<br>';
+  const rest=items.slice(i+1);let tail=null;
+  if(rest.length){tail=list.cloneNode(false);if(list.tagName==='OL')tail.removeAttribute('start');rest.forEach(x=>tail.append(x));}
+  list.after(p);let at=p;subs.forEach(sl=>{at.after(sl);at=sl;});if(tail)at.after(tail);
+  li.remove();if(!list.children.length)list.remove();
+  if(tail&&list.tagName==='OL'&&list.isConnected)tail.setAttribute('start',String(list.children.length+1)); // numbering continues
+  caretInto(p);
+}
+// phones (Android keyboards send no usable Backspace keydown): same rule on the input event
+ED().addEventListener('beforeinput',e=>{if(e.inputType==='deleteContentBackward'&&backAtStart())e.preventDefault();});
 const atBlockStart=b=>{const s=getSelection();if(!s.rangeCount)return false;const r=document.createRange();r.selectNodeContents(b);r.setEnd(s.anchorNode,s.anchorOffset);return !r.toString().replace(/ /g,' ').trim();};
 function moveBlock(up){
   const li=closestInEd('li');let b=li||currentBlock();if(!b)return;
