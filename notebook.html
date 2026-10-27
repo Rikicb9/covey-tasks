@@ -20,6 +20,9 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.0 (2026-10-27): pasting several paragraphs (or several lines of plain text) no longer takes
+  the format of the line you paste into (heading size, bold, colour): they go in as their own paragraphs.
+  The canvas' first line is plain text again — notes from when it was the title kept a big H1 there.
   Notebook v0.9.9 (2026-10-27): the formatting toolbar is always at the top of the note, on every screen
   (phones and tablets included) — it no longer floats at the bottom over the line you're typing. On long
   notes the header condenses to the toolbar only, as on desktop.
@@ -600,7 +603,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.9.9 · 2026.10.27</div>
+    <div class="ver" id="ver">Notebook v0.10.0 · 2026.10.27</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -704,7 +707,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.9.9';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.0';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -1726,10 +1729,14 @@ async function deleteFolder(f){
 // ── RICH-TEXT EDITOR ──
 const ED=()=>$('ed');
 function updateEmpty(){const e=ED();e.classList.toggle('is-empty',!e.textContent.trim()&&!e.querySelector('li,h1,h2,h3,img'));}
+function plainFirstLine(){ // the canvas' first line is ordinary text: notes from when the first line was the title kept a big H1 there
+  const f=ED().firstElementChild;
+  if(f&&f.tagName==='H1'){const p=document.createElement('p');p.append(...f.childNodes);if(f.dataset.indent)p.dataset.indent=f.dataset.indent;f.replaceWith(p);}
+}
 function getTitle(){return $('ttl').value.trim();}
 function setTitle(t){$('ttl').value=t||'';}
 function loadDoc(d){setTitle(d.title);setBody(d.body);}
-function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';unwrapListsFromParas();ED().querySelectorAll(':scope>p:empty').forEach(p=>{if(p.nextElementSibling&&/^(UL|OL)$/.test(p.nextElementSibling.tagName)||p.previousElementSibling&&/^(UL|OL)$/.test(p.previousElementSibling.tagName))p.remove();});orderFloats();liftInlineImages();decorate();updateEmpty();hydrateImages();}
+function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';plainFirstLine();unwrapListsFromParas();ED().querySelectorAll(':scope>p:empty').forEach(p=>{if(p.nextElementSibling&&/^(UL|OL)$/.test(p.nextElementSibling.tagName)||p.previousElementSibling&&/^(UL|OL)$/.test(p.previousElementSibling.tagName))p.remove();});orderFloats();liftInlineImages();decorate();updateEmpty();hydrateImages();}
 function getBody(){const h=sanitize(ED().innerHTML);return textOf(h).trim()||/<(li|table|hr|div|img)/i.test(h)?h:'';}
 function focusEditor(){const e=ED();e.focus();const r=document.createRange();r.selectNodeContents(e);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);}
 let savedRange=null;
@@ -1891,9 +1898,38 @@ ED().addEventListener('paste',e=>{
   const html=e.clipboardData.getData('text/html'),text=e.clipboardData.getData('text/plain');
   const t=(text||'').trim();
   if(!html&&/^(https?:\/\/|www\.)\S+$/i.test(t)){const u=/^www\./i.test(t)?'https://'+t:t;run('insertHTML',`<a href="${esc(u)}">${esc(t)}</a>&nbsp;`);}
-  else if(html){run('insertHTML',sanitize(html,{keepColors:false}));if(liftInlineImages())pushCustom();hydrateImages();}else run('insertText',text);
+  else{
+    let h=html?sanitize(html,{keepColors:false}):null;
+    if(!h&&/\n/.test(text||''))h=text.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').map(l=>'<p>'+(esc(l)||'<br>')+'</p>').join(''); // several lines → paragraphs
+    if(h&&pasteBlocks(h)){}
+    else if(h){run('insertHTML',h);if(liftInlineImages())pushCustom();hydrateImages();}
+    else run('insertText',text);
+  }
   onType();
 });
+// v0.10.0: pasted paragraphs keep their own format — they never take the heading/bold/colour of the line you paste into
+function pasteBlocks(h){
+  const s=getSelection();if(!s.rangeCount||!inEditor(s.anchorNode))return false;
+  if(closestInEd('li,td,th,pre'))return false; // lists, tables and code keep the native behaviour
+  const tpl=document.createElement('template');tpl.innerHTML=h;
+  const isBlock=n=>n.nodeType===1&&/^(P|DIV|H1|H2|H3|UL|OL|TABLE|BLOCKQUOTE|PRE|HR)$/.test(n.tagName);
+  if(![...tpl.content.childNodes].some(isBlock))return false; // a few words: normal inline paste
+  const frag=document.createDocumentFragment();let loose=null;
+  [...tpl.content.childNodes].forEach(n=>{if(isBlock(n)){loose=null;frag.append(n);}else{if(n.nodeType===3&&!n.nodeValue.trim()&&!loose)return;if(!loose){loose=document.createElement('p');frag.append(loose);}loose.append(n);}});
+  pushCustom();
+  if(!s.isCollapsed)s.deleteFromDocument();
+  let b=currentBlock();while(b&&b.parentNode!==ED()&&!b.parentNode.matches('div.float,div.callout,blockquote'))b=b.parentNode;
+  if(!b||b===ED()){return false;}
+  const r=s.getRangeAt(0),tail=document.createRange();tail.setStart(r.endContainer,r.endOffset);tail.setEnd(b,b.childNodes.length);
+  const rest=tail.extractContents(),hasStuff=x=>x.textContent.trim()||(x.querySelector&&x.querySelector('img'));
+  const nodes=[...frag.childNodes];let at=b;nodes.forEach(n=>{at.after(n);at=n;});
+  if(hasStuff(rest)){const t=document.createElement(b.tagName==='DIV'?'P':b.tagName);if(b.dataset.indent)t.dataset.indent=b.dataset.indent;t.append(rest);at.after(t);}
+  if(!hasStuff(b))b.remove();
+  const last=nodes[nodes.length-1];if(last){let end=last;while(end.lastElementChild&&/^(UL|OL|LI|TABLE|TBODY|TR|TD)$/.test(end.lastElementChild.tagName))end=end.lastElementChild;caretInto(end,true);}
+  liftInlineImages();decorate();hydrateImages();updateEmpty();
+  track('format_applied',{kind:'paste_blocks'});
+  return true;
+}
 ED().addEventListener('drop',e=>{
   if(!e.dataTransfer.files.length&&!e.dataTransfer.types.includes('text/note-id'))return;
   e.preventDefault();
