@@ -20,6 +20,10 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.1 (2026-10-27): removing an empty line (Backspace from the line below, or Delete in it)
+  just removes it — the moved line keeps its own format (a heading stays a heading). Chrome's merge left a
+  hidden size/colour span that then spread to pasted/typed text; those spans are cleaned when lines join,
+  and the app's own text colours are never stored as a colour (existing notes are cleaned on open).
   Notebook v0.10.0 (2026-10-27): pasting several paragraphs (or several lines of plain text) no longer takes
   the format of the line you paste into (heading size, bold, colour): they go in as their own paragraphs.
   The canvas' first line is plain text again — notes from when it was the title kept a big H1 there.
@@ -603,7 +607,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.10.0 · 2026.10.27</div>
+    <div class="ver" id="ver">Notebook v0.10.1 · 2026.10.27</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -707,7 +711,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.10.0';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.1';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -941,6 +945,11 @@ const notesIn=id=>notes.filter(n=>(n.folder_id||INBOX)===id);
 const allTags=()=>[...new Set(notes.flatMap(n=>n.tags||[]))].sort((a,b)=>a.localeCompare(b,'es'));
 // ── NOTE BODY: sanitized HTML (old notes may still be Markdown until edited) ──
 const isHTML=b=>/^\s*</.test(b||'');
+function rgbKey(c){c=(c||'').trim().toLowerCase();let m=c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
+  if(m){let h=m[1];if(h.length===3)h=h.split('').map(x=>x+x).join('');return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)).join(',');}
+  m=c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);return m?[m[1],m[2],m[3]].join(','):'';}
+const TEXT_INKS=new Set(['28,25,23','41,37,36','68,64,60','87,83,78','15,23,42','30,41,59','51,65,85','71,85,105','0,0,0']); // current + earlier app text colours, black
+const isTextInk=c=>TEXT_INKS.has(rgbKey(c));
 const COLOR_RE=/^(rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\)|#[0-9a-f]{3,8}|transparent)$/i;
 const KEEP={HR:1,TABLE:1,THEAD:1,TBODY:1,TR:1,TD:1,TH:1,P:1,DIV:1,BR:1,B:1,STRONG:1,I:1,EM:1,U:1,S:1,STRIKE:1,DEL:1,A:1,H1:1,H2:1,H3:1,UL:1,OL:1,LI:1,BLOCKQUOTE:1,PRE:1,CODE:1,SPAN:1,FONT:1};
 const DROP={SCRIPT:1,STYLE:1,IFRAME:1,OBJECT:1,EMBED:1,IMG:1,SVG:1,MATH:1,VIDEO:1,AUDIO:1,CANVAS:1,FORM:1,INPUT:1,BUTTON:1,TEXTAREA:1,SELECT:1,META:1,LINK:1,TITLE:1,HEAD:1,NOSCRIPT:1,TEMPLATE:1,BASE:1};
@@ -962,7 +971,7 @@ function sanitize(html,{keepColors=true}={}){
       if(keepColors){
         const c=tag==='FONT'?ch.getAttribute('color'):ch.style.color, bg=ch.style.backgroundColor;
         const st=[];
-        if(c&&COLOR_RE.test(c.trim()))st.push('color:'+c.trim());
+        if(c&&COLOR_RE.test(c.trim())&&!isTextInk(c))st.push('color:'+c.trim()); // the app's own text colours = no colour (left by line merges)
         if(bg&&COLOR_RE.test(bg.trim()))st.push('background-color:'+bg.trim());
         if(st.length)keep.style=st.join(';');
       }
@@ -2342,7 +2351,8 @@ ED().addEventListener('keydown',e=>{
     let n=cells[i+(e.shiftKey?-1:1)];
     if(!n&&!e.shiftKey){pushCustom();const tr=c.parentNode,row=document.createElement('tr');[...tr.children].forEach(()=>{const d=document.createElement('td');d.innerHTML='<br>';row.append(d);});tr.after(row);n=row.children[0];onType();}
     if(n)caretInto(n);return;}}
-  if(e.key==='Backspace'&&!e.shiftKey&&!(e.ctrlKey||e.metaKey||e.altKey)&&backAtStart()){e.preventDefault();return;}
+  if(e.key==='Backspace'&&!e.shiftKey&&!(e.ctrlKey||e.metaKey||e.altKey)&&(backAtStart()||dropEmptyLine(false))){e.preventDefault();return;}
+  if(e.key==='Delete'&&!e.shiftKey&&!(e.ctrlKey||e.metaKey||e.altKey)&&dropEmptyLine(true)){e.preventDefault();return;}
   if(e.key==='Backspace'&&s.rangeCount&&s.isCollapsed){
     const box=closestInEd('div.float,div.callout');
     if(box){const first=contentKids(box)[0];
@@ -2402,6 +2412,27 @@ function indentBlock(out){
 }
 // Backspace at the start of a line undoes its formatting one step at a time before joining lines (v0.9.4):
 // list item → outdent one level, then plain paragraph; indented paragraph/heading → one indent level less.
+// joining lines never drags formatting along (v0.10.1): an empty line just disappears; Chrome's merge spans are cleaned
+function emptyBlock(n){return n&&n.nodeType===1&&/^(P|DIV|H1|H2|H3)$/.test(n.tagName)&&!n.classList.contains('float')&&!n.classList.contains('callout')&&!n.textContent.trim()&&!n.querySelector('img,li,table,hr');}
+function sibBlock(n,prev){let x=prev?n.previousElementSibling:n.nextElementSibling;while(x&&x.hasAttribute('data-ui'))x=prev?x.previousElementSibling:x.nextElementSibling;return x;}
+function dropEmptyLine(forward){
+  const s=getSelection();if(!s.rangeCount||!s.isCollapsed||!inEditor(s.anchorNode)||closestInEd('li,td,th'))return false;
+  const b=currentBlock();if(!b||!/^(P|DIV|H1|H2|H3)$/.test(b.tagName)||b.classList.contains('float')||b.classList.contains('callout'))return false;
+  if(!forward){ // Backspace at the start of a line whose previous line is empty → remove that empty line
+    if(!atBlockStart(b))return false;const pv=sibBlock(b,true);if(!emptyBlock(pv))return false;
+    pushCustom();pv.remove();caretInto(b);onType();return true;}
+  // Delete in an empty line → remove it; the next line keeps its format
+  if(!emptyBlock(b))return false;const nx=sibBlock(b,false);if(!nx||nx.classList.contains('float'))return false;
+  pushCustom();b.remove();caretInto(/^(UL|OL)$/.test(nx.tagName)?nx.querySelector('li')||nx:nx.tagName==='TABLE'?nx.querySelector('td,th')||nx:nx);onType();return true;
+}
+function cleanMergeSpans(){ // spans Chrome adds when two different lines merge: drop size/spacing and the default text colour
+  ED().querySelectorAll('span[style]').forEach(sp=>{
+    ['font-size','letter-spacing','line-height','font-weight','font-family','font-style'].forEach(k=>sp.style.removeProperty(k));
+    if(sp.style.color&&isTextInk(sp.style.color))sp.style.removeProperty('color');
+    if(!sp.getAttribute('style')||!sp.style.length){sp.replaceWith(...sp.childNodes);}
+  });
+}
+ED().addEventListener('input',e=>{if(/^delete/.test(e.inputType||''))cleanMergeSpans();});
 function backAtStart(){
   const s=getSelection();if(!s.rangeCount||!s.isCollapsed||!inEditor(s.anchorNode))return false;
   const li=closestInEd('li');
@@ -2441,7 +2472,7 @@ function liToPara(li){ // a top-level list item becomes a paragraph in place; th
   caretInto(p);
 }
 // phones (Android keyboards send no usable Backspace keydown): same rule on the input event
-ED().addEventListener('beforeinput',e=>{if(e.inputType==='deleteContentBackward'&&backAtStart())e.preventDefault();});
+ED().addEventListener('beforeinput',e=>{if(e.inputType==='deleteContentBackward'&&(backAtStart()||dropEmptyLine(false)))e.preventDefault();else if(e.inputType==='deleteContentForward'&&dropEmptyLine(true))e.preventDefault();});
 const atBlockStart=b=>{const s=getSelection();if(!s.rangeCount)return false;const r=document.createRange();r.selectNodeContents(b);r.setEnd(s.anchorNode,s.anchorOffset);return !r.toString().replace(/ /g,' ').trim();};
 function moveBlock(up){
   const li=closestInEd('li');let b=li||currentBlock();if(!b)return;
