@@ -20,6 +20,8 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.3 (2026-11-01): compact note list — title and date on one line, snippet and tags on the
+  next, tighter padding and spacing (about twice as many notes on screen).
   Notebook v0.10.2 (2026-10-27): spelling — the browser's/keyboard's own checker is on for the title and the
   text (Spanish and English when both are enabled there); ⋯ → Activar/Desactivar corrector, remembered per
   device. Autocorrect + sentence capitals on phone keyboards. No dictionary shipped, no text leaves the device.
@@ -272,18 +274,23 @@ body.resizing{cursor:col-resize;user-select:none}
 #side .scope{min-height:40px;border-radius:10px}
 #notes mark{background:#FDE68A;color:inherit;border-radius:3px;padding:0 1px}
 .tasks{color:var(--mut);text-decoration:none;font-size:13px;font-weight:500;padding:0 6px;min-height:var(--touch);display:none;align-items:center}
-#notes{list-style:none;padding:2px 12px 16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:6px}
-#notes li{padding:12px 14px;border-radius:12px;cursor:pointer;border:1px solid transparent}
+#notes{list-style:none;padding:2px 10px 16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:1px}
+#notes li{padding:7px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
 #notes li:hover{background:var(--soft);border-color:var(--line)}
 #notes li.on{background:var(--accsoft);border-color:var(--accbd)}
-#notes .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#notes .p{font-size:13px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
-#notes .m{font-size:12px;color:var(--mut);margin-top:8px}
+/* v0.10.3 compact cards: title · date on one line, snippet · tags on the next */
+#notes .r1,#notes .r2{display:flex;align-items:baseline;gap:8px;min-width:0}
+#notes .t{font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#notes .d{font-size:11.5px;color:var(--mut);flex-shrink:0;white-space:nowrap}
+#notes .p{font-size:13px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#notes .m{font-size:11.5px;color:var(--mut);flex-shrink:1;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#notes .m:empty{display:none}
+#notes .r2{margin-top:1px}
 #notes li.sf{display:flex;align-items:center;gap:10px;background:var(--soft);border:1px solid var(--line)}
 #notes li.sf .t{flex:1}
 #notes li.sf .ct{font-size:12px;color:var(--mut)}
-#notes li.nc{position:relative;padding-right:46px}
-.nmenu{position:absolute;right:6px;top:8px;width:36px;height:36px;border:0;background:none;border-radius:9px;color:var(--mut);opacity:0;transition:opacity .1s;display:flex;align-items:center;justify-content:center}
+#notes li.nc{position:relative;padding-right:40px}
+.nmenu{position:absolute;right:4px;top:50%;margin-top:-18px;width:36px;height:36px;border:0;background:none;border-radius:9px;color:var(--mut);opacity:0;transition:opacity .1s;display:flex;align-items:center;justify-content:center}
 #notes li.nc:hover .nmenu,#notes li.nc.on .nmenu,.nmenu:focus-visible{opacity:1}
 .nmenu:hover{background:var(--side);color:var(--ink)}
 @media (hover:none){.nmenu{opacity:1}}
@@ -610,7 +617,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.10.2 · 2026.10.27</div>
+    <div class="ver" id="ver">Notebook v0.10.3 · 2026.11.01</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -714,7 +721,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.10.2';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.3';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -1263,9 +1270,8 @@ function renderList(){
     const d=getDraft(n.id),tt=displayTitle(n);
     const where=searching&&scopeAll?' · '+(n.folder_id?folderPath(n.folder_id):inboxName()):'';
     const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);}},
-      el('div',{class:'t'},...(n.pinned&&!searching?[pinMark()]:[]),tt),
-      el('div',{class:'p'},snippet(bodyText(n),terms)),
-      el('div',{class:'m'},fmtDate(n.updated_at)+where+(d?' · sin sincronizar':'')+((n.tags||[]).length?' · #'+n.tags.join(' #'):'')));
+      el('div',{class:'r1'},el('div',{class:'t'},...(n.pinned&&!searching?[pinMark()]:[]),tt),el('span',{class:'d'},fmtDate(n.updated_at))),
+      el('div',{class:'r2'},el('div',{class:'p'},snippet(bodyText(n),terms)),el('span',{class:'m'},[where.replace(/^ · /,''),d?'sin sincronizar':'',(n.tags||[]).length?'#'+n.tags.join(' #'):''].filter(Boolean).join(' · '))));
     li.append(el('button',{class:'nmenu',title:'Opciones de la nota','aria-label':'Opciones de la nota “'+tt+'”',
       onclick:e=>{e.stopPropagation();noteMenu(n.id,e.currentTarget);}},dots()));
     li.ondragstart=e=>{e.dataTransfer.setData('text/note-id',n.id);e.dataTransfer.effectAllowed='move';};
