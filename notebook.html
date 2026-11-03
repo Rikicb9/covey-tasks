@@ -20,6 +20,10 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.4 (2026-11-03): find in note — magnifier button in the note bar or Ctrl/⌘+F: highlights every
+  match (accents and capitals ignored), "3 de 12", Enter / Shift+Enter to move, Esc closes and leaves the
+  caret on the match. Opening a note from search results highlights the searched word. The note's content
+  is never changed (CSS Highlight API).
   Notebook v0.10.3 (2026-11-01): compact note list — title and date on one line, snippet and tags on the
   next, tighter padding and spacing (about twice as many notes on screen).
   Notebook v0.10.2 (2026-10-27): spelling — the browser's/keyboard's own checker is on for the title and the
@@ -361,7 +365,18 @@ body.resizing{cursor:col-resize;user-select:none}
 #ed img.broken{width:min(100%,360px);min-height:56px;outline:1px dashed #D6D3D1}
 .pinm{color:#B45309;margin-right:5px;vertical-align:-1px;display:inline-flex}
 #bPin.on{color:#B45309;background:#FEF3C7}
-#bPin[hidden],#bFocus[hidden]{display:none}
+#bPin[hidden],#bFocus[hidden],#bFind[hidden]{display:none}
+/* v0.10.4 find in note */
+#findbar{display:flex;align-items:center;gap:4px;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--mut);max-width:520px;box-shadow:0 2px 8px rgba(28,25,23,.06)}
+#findbar[hidden]{display:none}
+#findq{flex:1;min-width:0;border:0;outline:0;background:none;font-size:15px;color:var(--ink);padding:6px 4px}
+#findq::-webkit-search-cancel-button{display:none}
+#findn{font-size:12px;white-space:nowrap;min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+#findn.none{color:var(--red)}
+#findbar .iconbtn{min-width:34px;min-height:34px;border-radius:8px}
+#bFind.on{color:var(--acc);background:var(--accbg)}
+::highlight(nb-find){background:#FEF08A;color:inherit}
+::highlight(nb-find-cur){background:#FB923C;color:#1C1917}
 #printArea{display:none}
 @media print{
   body.printing>*:not(#printArea){display:none!important}
@@ -617,7 +632,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.10.3 · 2026.11.01</div>
+    <div class="ver" id="ver">Notebook v0.10.4 · 2026.11.03</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -641,6 +656,7 @@ body.resizing{cursor:col-resize;user-select:none}
       <span class="pill saved" id="status">Guardado</span>
       <span class="grow" id="egrow"></span>
       <span class="eacts" id="eacts"><span class="sdot saved" id="sdot" role="status" title="Guardado" aria-label="Guardado"></span>
+      <button class="iconbtn" id="bFind" title="Buscar en la nota" aria-label="Buscar en la nota" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
       <button class="iconbtn" id="bFocus" title="Pantalla completa" aria-label="Pantalla completa" aria-pressed="false"><svg class="i-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg><svg class="i-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg></button>
       <button class="iconbtn" id="bPin" title="Fijar arriba" aria-label="Fijar arriba" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l1.79 1.8A2 2 0 0 1 17.38 14H6.62a2 2 0 0 1 .59-1.44z"/><path d="M8 2h8"/></svg></button>
       <button class="iconbtn" id="bHist" title="Historial" aria-label="Historial"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></button>
@@ -689,6 +705,14 @@ body.resizing{cursor:col-resize;user-select:none}
       </div>
       <span id="actsSlot"></span>
       </div>
+      <div id="findbar" role="search" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="findq" type="search" placeholder="Buscar en esta nota" aria-label="Buscar en esta nota" autocomplete="off" spellcheck="false" enterkeyhint="search"/>
+        <span id="findn" aria-live="polite"></span>
+        <button class="iconbtn" id="findPrev" title="Anterior (Shift+Enter)" aria-label="Coincidencia anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+        <button class="iconbtn" id="findNext" title="Siguiente (Enter)" aria-label="Coincidencia siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="iconbtn" id="findClose" title="Cerrar (Esc)" aria-label="Cerrar búsqueda"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      </div>
       </div><!-- /ehead -->
       <div class="panel" id="panel"></div>
       <div id="ed" contenteditable="true" spellcheck="true" autocorrect="on" autocapitalize="sentences" role="textbox" aria-multiline="true" aria-label="Texto de la nota" data-ph="Escribe… o pulsa «/» para insertar" hidden></div>
@@ -721,7 +745,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.10.3';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.4';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -1269,7 +1293,7 @@ function renderList(){
   list.forEach((n,rank)=>{
     const d=getDraft(n.id),tt=displayTitle(n);
     const where=searching&&scopeAll?' · '+(n.folder_id?folderPath(n.folder_id):inboxName()):'';
-    const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);}},
+    const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);if(searching&&terms[0])openFind(terms[0]);}},
       el('div',{class:'r1'},el('div',{class:'t'},...(n.pinned&&!searching?[pinMark()]:[]),tt),el('span',{class:'d'},fmtDate(n.updated_at))),
       el('div',{class:'r2'},el('div',{class:'p'},snippet(bodyText(n),terms)),el('span',{class:'m'},[where.replace(/^ · /,''),d?'sin sincronizar':'',(n.tags||[]).length?'#'+n.tags.join(' #'):''].filter(Boolean).join(' · '))));
     li.append(el('button',{class:'nmenu',title:'Opciones de la nota','aria-label':'Opciones de la nota “'+tt+'”',
@@ -1413,7 +1437,7 @@ function renderEditor(){
   const has=!!cur;
   $('nonote').hidden=has;$('ed').hidden=!has;$('fmt').hidden=!has;$('thead').hidden=!has;$('edited').hidden=!has;
   ['bHist','bMore'].forEach(b=>$(b).disabled=!has);
-  $('ehead').hidden=!has;$('bFocus').hidden=!has;if(!has)setFocus(false);
+  $('ehead').hidden=!has;$('bFocus').hidden=!has;$('bFind').hidden=!has;if(!has){setFocus(false);if(find.on)closeFind(false);}
   {const b=$('bPin'),on=!!(has&&cur.pinned);b.hidden=!has||pinOff;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));
    b.title=b.ariaLabel=on?'Desfijar':'Fijar arriba';b.setAttribute('aria-label',on?'Desfijar':'Fijar arriba');}
   if(!has){hidePalette();closeSlash();['linkchip','bubble','tbar'].forEach(i=>$(i).classList.remove('show'));return;}
@@ -1519,6 +1543,7 @@ function openNote(id){
   const d=getDraft(id);
   loadDoc(docOf(n));
   renderList();renderEditor();
+  if(find.on)setTimeout(()=>runFind(false),0);
   {const sameNote=$('ebody').dataset.nid===id;$('ebody').dataset.nid=id;if(!sameNote)$('ebody').scrollTop=0;window.updHead&&updHead();}
   if(isMobile())view('note');
   if(d){setStatus('saving');scheduleSave(0);}else setStatus('saved');
@@ -1538,7 +1563,63 @@ async function newNote(){
     return row;
   }catch(e){setStatus(e.status?'error':'offline');toast(e.status?'No se pudo crear la nota.':'Sin conexión: no se puede crear la nota ahora.');}
 }
+// ── FIND IN NOTE (v0.10.4): highlights with the CSS Highlight API (the note's content is never touched),
+//    accent- and case-insensitive like the app search; Enter / Shift+Enter, Ctrl/⌘+F, Esc ──
+const find={on:false,ranges:[],i:-1,t:null};
+const HL=typeof CSS!=='undefined'&&CSS.highlights&&typeof Highlight!=='undefined';
+function foldChar(c){return c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+function findRanges(q){
+  const term=fold(q.trim());if(!term)return [];
+  const e=ED(),w=document.createTreeWalker(e,NodeFilter.SHOW_TEXT,{acceptNode:t=>t.parentNode.closest('[data-ui]')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
+  let str='',map=[],t,lastBlock=null;
+  while((t=w.nextNode())){
+    const blk=t.parentNode.closest('p,li,h1,h2,h3,td,th,blockquote,pre,div');
+    if(lastBlock&&blk!==lastBlock){str+='\u0000';map.push(null);} // never match across lines
+    lastBlock=blk;
+    const v=t.nodeValue;for(let k=0;k<v.length;k++){const f=foldChar(v[k]);for(const ch of f){str+=ch;map.push([t,k]);}}
+  }
+  const out=[];let at=str.indexOf(term);
+  while(at>=0){
+    const a=map[at],z=map[at+term.length-1];
+    if(a&&z&&!map.slice(at,at+term.length).includes(null)){const r=document.createRange();r.setStart(a[0],a[1]);r.setEnd(z[0],z[1]+1);out.push(r);}
+    at=str.indexOf(term,at+Math.max(1,term.length));
+  }
+  return out;
+}
+function paintFind(scroll){
+  const n=find.ranges.length,lab=$('findn');
+  lab.textContent=!$('findq').value.trim()?'':n?(find.i+1)+' de '+n:'Sin resultados';lab.classList.toggle('none',!!$('findq').value.trim()&&!n);
+  if(HL){CSS.highlights.set('nb-find',new Highlight(...find.ranges));CSS.highlights.set('nb-find-cur',new Highlight(...(n&&find.i>=0?[find.ranges[find.i]]:[])));}
+  if(scroll&&n&&find.i>=0){
+    const r=find.ranges[find.i],box=r.getBoundingClientRect(),eb=$('ebody'),eh=$('ehead').getBoundingClientRect(),vb=eb.getBoundingClientRect();
+    if(box.top<eh.bottom+8||box.bottom>vb.bottom-24)eb.scrollTop+=box.top-(eh.bottom+(vb.bottom-eh.bottom)/3);
+    if(!HL){const s=getSelection();s.removeAllRanges();s.addRange(r.cloneRange());} // older browsers: show the match as a selection
+  }
+}
+function runFind(keepPos){
+  const q=$('findq').value;const prev=find.ranges[find.i];
+  find.ranges=findRanges(q);
+  if(!find.ranges.length)find.i=-1;
+  else if(keepPos&&prev){const k=find.ranges.findIndex(r=>r.compareBoundaryPoints(Range.START_TO_START,prev)>=0);find.i=k<0?0:k;}
+  else find.i=0;
+  paintFind(!keepPos);
+}
+function stepFind(d){if(!find.ranges.length)return;find.i=(find.i+d+find.ranges.length)%find.ranges.length;paintFind(true);}
+function openFind(term){
+  if(!cur)return;
+  find.on=true;$('findbar').hidden=false;$('bFind').classList.add('on');$('bFind').setAttribute('aria-expanded','true');
+  const q=$('findq');if(term!=null)q.value=term;
+  if(!term){const sel=getSelection();const st=sel.rangeCount&&inEditor(sel.anchorNode)?sel.toString().trim():'';if(st&&st.length<60&&!/\n/.test(st))q.value=st;}
+  q.focus();q.select();runFind(false);track('find_in_note',{from:term!=null?'search':'open'});
+}
+function closeFind(toText){
+  find.on=false;$('findbar').hidden=true;$('bFind').classList.remove('on');$('bFind').setAttribute('aria-expanded','false');
+  if(HL){CSS.highlights.delete('nb-find');CSS.highlights.delete('nb-find-cur');}
+  const r=find.ranges[find.i];find.ranges=[];find.i=-1;
+  if(toText&&cur){ED().focus({preventScroll:true});if(r){const s=getSelection();s.removeAllRanges();s.addRange(r);savedRange=r.cloneRange();}}
+}
 function onType(){
+  if(find.on){clearTimeout(find.t);find.t=setTimeout(()=>runFind(true),150);}
   if(!cur)return;
   const body=getBody(),title=getTitle();
   putDraft(cur.id,body,cur.version,title);
@@ -2525,7 +2606,7 @@ const KEYS=[['Formato',[['Mod+B','Negrita'],['Mod+I','Cursiva'],['Mod+U','Subray
   ['Mover y sangría',[['Tab','Sangría · anidar en lista · celda siguiente'],['Shift+Tab','Quitar sangría · celda anterior'],['Alt+Shift+↑ / ↓','Subir / bajar línea o elemento']]],
   ['Editar',[['Mod+Z','Deshacer'],['Mod+Shift+Z','Rehacer'],['Mod+S','Guardar ahora'],['Esc','Salir del editor (Tab sigue por la página)']]],
   ['Escribir rápido',[['- espacio','Lista'],['1. espacio','Lista numerada'],['[] espacio','Tareas'],['# espacio','Título'],['https://… espacio','Enlace automático']]],
-  ['Notas',[['/','Buscar (fuera del editor)'],['Doble clic en vacío','Bloque flotante (escritorio)'],['Mod+Shift+Enter','Pantalla completa (Esc para salir)'],['Mod+/','Esta ayuda']]]];
+  ['Notas',[['/','Buscar (fuera del editor)'],['Doble clic en vacío','Bloque flotante (escritorio)'],['Mod+F','Buscar en la nota (Enter / Shift+Enter: siguiente / anterior)'],['Mod+Shift+Enter','Pantalla completa (Esc para salir)'],['Mod+/','Esta ayuda']]]];
 function showKeys(){
   const box=el('div',{});
   KEYS.forEach(([h,rows])=>{box.append(el('h4',{},h));const t=el('table',{class:'kbt'});rows.forEach(([k,d])=>t.append(el('tr',{},el('td',{},...kbLabel(k).split(' / ').flatMap((x,i)=>i?[' / ',el('kbd',{},x)]:[el('kbd',{},x)])),el('td',{},d))));box.append(t);});
@@ -2614,6 +2695,18 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&document.body.classList.contains('focus')&&!$('modal').classList.contains('show')&&!slash.open&&!$('palette').classList.contains('show')&&document.activeElement!==ED()){e.preventDefault();setFocus(false);}
 });
 $('bMore').onclick=()=>{if(cur)noteMenu(cur.id,$('bMore'));};
+$('bFind').onclick=()=>{find.on?closeFind(true):openFind();};
+$('findq').addEventListener('input',()=>{clearTimeout(find.t);find.t=setTimeout(()=>runFind(false),80);});
+$('findq').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();stepFind(e.shiftKey?-1:1);}
+  else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeFind(true);}
+});
+$('findPrev').onclick=()=>stepFind(-1);$('findNext').onclick=()=>stepFind(1);$('findClose').onclick=()=>closeFind(true);
+document.addEventListener('keydown',e=>{
+  const mod=e.metaKey||e.ctrlKey;
+  if(mod&&!e.shiftKey&&!e.altKey&&e.key.toLowerCase()==='f'&&cur&&(curView()==='note'||!isMobile())){e.preventDefault();openFind();return;}
+  if(find.on&&(e.key==='F3'||mod&&e.key.toLowerCase()==='g')){e.preventDefault();stepFind(e.shiftKey?-1:1);}
+},true);
 const moveCurrent=async()=>{if(!cur)return;const t=await askFolder('Mover nota a…',{exclude:cur.folder_id||INBOX});if(t)moveNote(cur.id,t,'menu');};
 $('fab').onclick=newNote;
 $('ttl').addEventListener('input',onType);
