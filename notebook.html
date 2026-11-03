@@ -20,6 +20,9 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.5 (2026-11-03): find in note on phones — the bar is pinned to the top of the visible screen
+  (stays in view with the keyboard open) and matches scroll above the keyboard; back closes the search first;
+  closing it, leaving the note or opening another one resets it (empty box, no highlights).
   Notebook v0.10.4 (2026-11-03): find in note — magnifier button in the note bar or Ctrl/⌘+F: highlights every
   match (accents and capitals ignored), "3 de 12", Enter / Shift+Enter to move, Esc closes and leaves the
   caret on the match. Opening a note from search results highlights the searched word. The note's content
@@ -596,6 +599,7 @@ body.resizing{cursor:col-resize;user-select:none}
   #ebody{padding:12px 16px 40px;gap:8px}
   #ehead{top:-12px;margin:-12px -16px 0;padding:12px 16px 6px;gap:8px}
   #ehead.stuck{padding-top:8px;padding-bottom:8px;gap:6px}
+  #findbar{position:fixed;left:8px;right:8px;top:var(--fbtop,64px);z-index:45;max-width:none;box-shadow:0 8px 24px rgba(28,25,23,.18)}
   .thead{gap:10px;flex-wrap:wrap}
   #ttl{flex-basis:100%;font-size:26px}
   .tags{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;width:100%;max-width:none;scrollbar-width:none}
@@ -632,7 +636,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.10.4 · 2026.11.03</div>
+    <div class="ver" id="ver">Notebook v0.10.5 · 2026.11.03</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -745,7 +749,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.10.4';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.5';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -817,7 +821,7 @@ function goBack(n){pendingPops++;history.go(-n);}
 function applyView(v){
   if(curView()==='note'&&v!=='note'&&cur&&saveTimer){clearTimeout(saveTimer);saveTimer=null;save();} // never lose a pending edit
   document.body.dataset.v=v;
-  if(v!=='note'){closeSlash&&closeSlash();hidePalette&&hidePalette();}
+  if(v!=='note'){closeSlash&&closeSlash();hidePalette&&hidePalette();if(typeof find!=='undefined'&&find.on)closeFind(false,true);}
 }
 function view(v){ // forward navigation
   const from=curView();applyView(v);
@@ -830,6 +834,7 @@ function view(v){ // forward navigation
   });
 }
 function navBack(){ // on-screen ← = system back
+  if(typeof findPushed!=='undefined'&&findPushed)closeFind(false); // drop the search's own step, then go back
   if(!isMobile()||!navReady){applyView(curView()==='note'?'list':'folders');return;}
   whenSettled(()=>{if(navDepth()>0)history.back();else{applyView('folders');renderTree();}});
 }
@@ -850,6 +855,7 @@ window.addEventListener('popstate',e=>{
   }
   if(!isMobile())return;
   if(modalCloser){const c=modalCloser;modalCloser=null;modalPushed=false;c();return;} // back closes the open dialog first
+  if(findPushed){closeFind(false,true);return;} // …then the search in the note
   const st=e.state&&!e.state.modal?e.state:{nb:'folders',d:0};
   showState(st);
   track('nav_back',{to:st.nb||'folders'});
@@ -1293,7 +1299,7 @@ function renderList(){
   list.forEach((n,rank)=>{
     const d=getDraft(n.id),tt=displayTitle(n);
     const where=searching&&scopeAll?' · '+(n.folder_id?folderPath(n.folder_id):inboxName()):'';
-    const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);if(searching&&terms[0])openFind(terms[0]);}},
+    const li=el('li',{class:'nc'+(cur&&cur.id===n.id?' on':''),draggable:'true',onclick:()=>{if(searching)track('search_result_opened',{result_rank:rank+1});openNote(n.id);if(searching&&terms[0])openFind(terms[0],true);}},
       el('div',{class:'r1'},el('div',{class:'t'},...(n.pinned&&!searching?[pinMark()]:[]),tt),el('span',{class:'d'},fmtDate(n.updated_at))),
       el('div',{class:'r2'},el('div',{class:'p'},snippet(bodyText(n),terms)),el('span',{class:'m'},[where.replace(/^ · /,''),d?'sin sincronizar':'',(n.tags||[]).length?'#'+n.tags.join(' #'):''].filter(Boolean).join(' · '))));
     li.append(el('button',{class:'nmenu',title:'Opciones de la nota','aria-label':'Opciones de la nota “'+tt+'”',
@@ -1543,7 +1549,7 @@ function openNote(id){
   const d=getDraft(id);
   loadDoc(docOf(n));
   renderList();renderEditor();
-  if(find.on)setTimeout(()=>runFind(false),0);
+  if(find.on&&$('ebody').dataset.nid!==id)closeFind(false);
   {const sameNote=$('ebody').dataset.nid===id;$('ebody').dataset.nid=id;if(!sameNote)$('ebody').scrollTop=0;window.updHead&&updHead();}
   if(isMobile())view('note');
   if(d){setStatus('saving');scheduleSave(0);}else setStatus('saved');
@@ -1591,8 +1597,10 @@ function paintFind(scroll){
   lab.textContent=!$('findq').value.trim()?'':n?(find.i+1)+' de '+n:'Sin resultados';lab.classList.toggle('none',!!$('findq').value.trim()&&!n);
   if(HL){CSS.highlights.set('nb-find',new Highlight(...find.ranges));CSS.highlights.set('nb-find-cur',new Highlight(...(n&&find.i>=0?[find.ranges[find.i]]:[])));}
   if(scroll&&n&&find.i>=0){
-    const r=find.ranges[find.i],box=r.getBoundingClientRect(),eb=$('ebody'),eh=$('ehead').getBoundingClientRect(),vb=eb.getBoundingClientRect();
-    if(box.top<eh.bottom+8||box.bottom>vb.bottom-24)eb.scrollTop+=box.top-(eh.bottom+(vb.bottom-eh.bottom)/3);
+    const r=find.ranges[find.i],box=r.getBoundingClientRect(),eb=$('ebody'),vb=eb.getBoundingClientRect(),vv=window.visualViewport;
+    const top=Math.max($('ehead').getBoundingClientRect().bottom,isMobile()?$('findbar').getBoundingClientRect().bottom:0);
+    const bottom=Math.min(vb.bottom,vv?vv.offsetTop+vv.height:innerHeight); // above the on-screen keyboard
+    if(box.top<top+8||box.bottom>bottom-24)eb.scrollTop+=box.top-(top+Math.max(16,(bottom-top)/3));
     if(!HL){const s=getSelection();s.removeAllRanges();s.addRange(r.cloneRange());} // older browsers: show the match as a selection
   }
 }
@@ -1605,14 +1613,24 @@ function runFind(keepPos){
   paintFind(!keepPos);
 }
 function stepFind(d){if(!find.ranges.length)return;find.i=(find.i+d+find.ranges.length)%find.ranges.length;paintFind(true);}
-function openFind(term){
+let findPushed=false;
+function placeFindBar(){ // phones: the bar is pinned to the top of the visible screen, also with the keyboard open
+  const vv=window.visualViewport,bar=document.querySelector('#edp .etool'),under=bar?bar.getBoundingClientRect().bottom+6:8;
+  document.documentElement.style.setProperty('--fbtop',Math.max(under,(vv?vv.offsetTop:0)+8)+'px'); // under the ← bar, never off-screen
+}
+if(window.visualViewport){visualViewport.addEventListener('resize',()=>{if(find.on)placeFindBar();});visualViewport.addEventListener('scroll',()=>{if(find.on)placeFindBar();});}
+function openFind(term,auto){ // auto: opened by a search result — just highlight (no keyboard, no extra back step)
   if(!cur)return;
+  if(isMobile()){placeFindBar();if(!auto&&!find.on&&navReady&&!findPushed){history.pushState({...(history.state||{}),find:true},'');findPushed=true;}} // back closes the search first
   find.on=true;$('findbar').hidden=false;$('bFind').classList.add('on');$('bFind').setAttribute('aria-expanded','true');
   const q=$('findq');if(term!=null)q.value=term;
   if(!term){const sel=getSelection();const st=sel.rangeCount&&inEditor(sel.anchorNode)?sel.toString().trim():'';if(st&&st.length<60&&!/\n/.test(st))q.value=st;}
-  q.focus();q.select();runFind(false);track('find_in_note',{from:term!=null?'search':'open'});
+  if(!(auto&&isMobile())){q.focus();q.select();}runFind(false);track('find_in_note',{from:auto?'search':'open'});
 }
-function closeFind(toText){
+function closeFind(toText,fromBack){
+  if(findPushed&&!fromBack){findPushed=false;goBack(1);}else if(fromBack)findPushed=false;
+  $('findq').value='';$('findn').textContent='';  // every search starts fresh
+  if(isMobile()){toText=false;if(document.activeElement===$('findq'))$('findq').blur();} // no keyboard popping up again
   find.on=false;$('findbar').hidden=true;$('bFind').classList.remove('on');$('bFind').setAttribute('aria-expanded','false');
   if(HL){CSS.highlights.delete('nb-find');CSS.highlights.delete('nb-find-cur');}
   const r=find.ranges[find.i];find.ranges=[];find.i=-1;
