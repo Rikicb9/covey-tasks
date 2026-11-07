@@ -20,6 +20,11 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.7 (2026-11-07): the app's own spell checker (Spanish + English). Automatic: detects the
+  language of each paragraph and accepts a word that is right in either language; or fixed per note
+  (⋯ → Corrector: Automático / Español / English / Desactivado). Right-click (tap on phones) an underlined
+  word: suggestions, "Añadir al diccionario", "Ignorar". Dictionaries (Hunspell, ~1.4 MB) are downloaded once
+  and cached; no text leaves the device. Replaces the browser checker, which only knew Spanish.
   Notebook v0.10.6 (2026-11-05): automatic lists and Tab — "- ", "1. ", "[] " start a list even with spaces
   before them; a line indented with Tab keeps its indent when it becomes a list (and gets it back if the
   bullet is removed); a space typed at the very start of an empty list item is ignored; existing list items
@@ -373,6 +378,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .pinm{color:#B45309;margin-right:5px;vertical-align:-1px;display:inline-flex}
 #bPin.on{color:#B45309;background:#FEF3C7}
 #bPin[hidden],#bFocus[hidden],#bFind[hidden]{display:none}
+::highlight(nb-spell){text-decoration:underline wavy #DC2626;text-decoration-skip-ink:none;text-underline-offset:3px}
 /* v0.10.4 find in note */
 #findbar{display:flex;align-items:center;gap:4px;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--mut);max-width:520px;box-shadow:0 2px 8px rgba(28,25,23,.06)}
 #findbar[hidden]{display:none}
@@ -640,7 +646,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.10.6 · 2026.11.05</div>
+    <div class="ver" id="ver">Notebook v0.10.7 · 2026.11.07</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -729,6 +735,1279 @@ body.resizing{cursor:col-resize;user-select:none}
 </div>
 
 <div id="modal"><div id="mbox"></div></div>
+<script type="text/plain" id="spellWorkerSrc">/* nspell 2.1.5 — (c) 2016 Titus Wormer, MIT License — bundled for Covey Notas */
+var __m={},__c={};
+__m["./correct.js"]=function(module,exports){'use strict'
+
+var form = __r("./util/form.js")
+
+module.exports = correct
+
+// Check spelling of `value`.
+function correct(value) {
+  return Boolean(form(this, value))
+}
+
+};
+__m["./suggest.js"]=function(module,exports){'use strict'
+
+var casing = __r("./util/casing.js")
+var normalize = __r("./util/normalize.js")
+var flag = __r("./util/flag.js")
+var form = __r("./util/form.js")
+
+module.exports = suggest
+
+var push = [].push
+
+// Suggest spelling for `value`.
+// eslint-disable-next-line complexity
+function suggest(value) {
+  var self = this
+  var charAdded = {}
+  var suggestions = []
+  var weighted = {}
+  var memory
+  var replacement
+  var edits = []
+  var values
+  var index
+  var offset
+  var position
+  var count
+  var otherOffset
+  var otherCharacter
+  var character
+  var group
+  var before
+  var after
+  var upper
+  var insensitive
+  var firstLevel
+  var previous
+  var next
+  var nextCharacter
+  var max
+  var distance
+  var size
+  var normalized
+  var suggestion
+  var currentCase
+
+  value = normalize(value.trim(), self.conversion.in)
+
+  if (!value || self.correct(value)) {
+    return []
+  }
+
+  currentCase = casing(value)
+
+  // Check the replacement table.
+  index = -1
+
+  while (++index < self.replacementTable.length) {
+    replacement = self.replacementTable[index]
+    offset = value.indexOf(replacement[0])
+
+    while (offset > -1) {
+      edits.push(value.replace(replacement[0], replacement[1]))
+      offset = value.indexOf(replacement[0], offset + 1)
+    }
+  }
+
+  // Check the keyboard.
+  index = -1
+
+  while (++index < value.length) {
+    character = value.charAt(index)
+    before = value.slice(0, index)
+    after = value.slice(index + 1)
+    insensitive = character.toLowerCase()
+    upper = insensitive !== character
+    charAdded = {}
+
+    offset = -1
+
+    while (++offset < self.flags.KEY.length) {
+      group = self.flags.KEY[offset]
+      position = group.indexOf(insensitive)
+
+      if (position < 0) {
+        continue
+      }
+
+      otherOffset = -1
+
+      while (++otherOffset < group.length) {
+        if (otherOffset !== position) {
+          otherCharacter = group.charAt(otherOffset)
+
+          if (charAdded[otherCharacter]) {
+            continue
+          }
+
+          charAdded[otherCharacter] = true
+
+          if (upper) {
+            otherCharacter = otherCharacter.toUpperCase()
+          }
+
+          edits.push(before + otherCharacter + after)
+        }
+      }
+    }
+  }
+
+  // Check cases where one of a double character was forgotten, or one too many
+  // were added, up to three “distances”.  This increases the success-rate by 2%
+  // and speeds the process up by 13%.
+  index = -1
+  nextCharacter = value.charAt(0)
+  values = ['']
+  max = 1
+  distance = 0
+
+  while (++index < value.length) {
+    character = nextCharacter
+    nextCharacter = value.charAt(index + 1)
+    before = value.slice(0, index)
+
+    replacement = character === nextCharacter ? '' : character + character
+    offset = -1
+    count = values.length
+
+    while (++offset < count) {
+      if (offset <= max) {
+        values.push(values[offset] + replacement)
+      }
+
+      values[offset] += character
+    }
+
+    if (++distance < 3) {
+      max = values.length
+    }
+  }
+
+  push.apply(edits, values)
+
+  // Ensure the capitalised and uppercase values are included.
+  values = [value]
+  replacement = value.toLowerCase()
+
+  if (value === replacement || currentCase === null) {
+    values.push(value.charAt(0).toUpperCase() + replacement.slice(1))
+  }
+
+  replacement = value.toUpperCase()
+
+  if (value !== replacement) {
+    values.push(replacement)
+  }
+
+  // Construct a memory object for `generate`.
+  memory = {
+    state: {},
+    weighted: weighted,
+    suggestions: suggestions
+  }
+
+  firstLevel = generate(self, memory, values, edits)
+
+  // While there are no suggestions based on generated values with an
+  // edit-distance of `1`, check the generated values, `SIZE` at a time.
+  // Basically, we’re generating values with an edit-distance of `2`, but were
+  // doing it in small batches because it’s such an expensive operation.
+  previous = 0
+  max = Math.min(firstLevel.length, Math.pow(Math.max(15 - value.length, 3), 3))
+  size = Math.max(Math.pow(10 - value.length, 3), 1)
+
+  while (!suggestions.length && previous < max) {
+    next = previous + size
+    generate(self, memory, firstLevel.slice(previous, next))
+    previous = next
+  }
+
+  // Sort the suggestions based on their weight.
+  suggestions.sort(sort)
+
+  // Normalize the output.
+  values = []
+  normalized = []
+  index = -1
+
+  while (++index < suggestions.length) {
+    suggestion = normalize(suggestions[index], self.conversion.out)
+    replacement = suggestion.toLowerCase()
+
+    if (normalized.indexOf(replacement) < 0) {
+      values.push(suggestion)
+      normalized.push(replacement)
+    }
+  }
+
+  // BOOM! All done!
+  return values
+
+  function sort(a, b) {
+    return sortWeight(a, b) || sortCasing(a, b) || sortAlpha(a, b)
+  }
+
+  function sortWeight(a, b) {
+    return weighted[a] === weighted[b] ? 0 : weighted[a] > weighted[b] ? -1 : 1
+  }
+
+  function sortCasing(a, b) {
+    var leftCasing = casing(a)
+    var rightCasing = casing(b)
+
+    return leftCasing === rightCasing
+      ? 0
+      : leftCasing === currentCase
+      ? -1
+      : rightCasing === currentCase
+      ? 1
+      : undefined
+  }
+
+  function sortAlpha(a, b) {
+    return a.localeCompare(b)
+  }
+}
+
+// Get a list of values close in edit distance to `words`.
+function generate(context, memory, words, edits) {
+  var characters = context.flags.TRY
+  var data = context.data
+  var flags = context.flags
+  var result = []
+  var index = -1
+  var word
+  var before
+  var character
+  var nextCharacter
+  var nextAfter
+  var nextNextAfter
+  var nextUpper
+  var currentCase
+  var position
+  var after
+  var upper
+  var inject
+  var offset
+
+  // Check the pre-generated edits.
+  if (edits) {
+    while (++index < edits.length) {
+      check(edits[index], true)
+    }
+  }
+
+  // Iterate over given word.
+  index = -1
+
+  while (++index < words.length) {
+    word = words[index]
+    before = ''
+    character = ''
+    nextCharacter = word.charAt(0)
+    nextAfter = word
+    nextNextAfter = word.slice(1)
+    nextUpper = nextCharacter.toLowerCase() !== nextCharacter
+    currentCase = casing(word)
+    position = -1
+
+    // Iterate over every character (including the end).
+    while (++position <= word.length) {
+      before += character
+      after = nextAfter
+      nextAfter = nextNextAfter
+      nextNextAfter = nextAfter.slice(1)
+      character = nextCharacter
+      nextCharacter = word.charAt(position + 1)
+      upper = nextUpper
+
+      if (nextCharacter) {
+        nextUpper = nextCharacter.toLowerCase() !== nextCharacter
+      }
+
+      if (nextAfter && upper !== nextUpper) {
+        // Remove.
+        check(before + switchCase(nextAfter))
+
+        // Switch.
+        check(
+          before +
+            switchCase(nextCharacter) +
+            switchCase(character) +
+            nextNextAfter
+        )
+      }
+
+      // Remove.
+      check(before + nextAfter)
+
+      // Switch.
+      if (nextAfter) {
+        check(before + nextCharacter + character + nextNextAfter)
+      }
+
+      // Iterate over all possible letters.
+      offset = -1
+
+      while (++offset < characters.length) {
+        inject = characters[offset]
+
+        // Try uppercase if the original character was uppercased.
+        if (upper && inject !== inject.toUpperCase()) {
+          if (currentCase !== 's') {
+            check(before + inject + after)
+            check(before + inject + nextAfter)
+          }
+
+          inject = inject.toUpperCase()
+
+          check(before + inject + after)
+          check(before + inject + nextAfter)
+        } else {
+          // Add and replace.
+          check(before + inject + after)
+          check(before + inject + nextAfter)
+        }
+      }
+    }
+  }
+
+  // Return the list of generated words.
+  return result
+
+  // Check and handle a generated value.
+  function check(value, double) {
+    var state = memory.state[value]
+    var corrected
+
+    if (state !== Boolean(state)) {
+      result.push(value)
+
+      corrected = form(context, value)
+      state = corrected && !flag(flags, 'NOSUGGEST', data[corrected])
+
+      memory.state[value] = state
+
+      if (state) {
+        memory.weighted[value] = double ? 10 : 0
+        memory.suggestions.push(value)
+      }
+    }
+
+    if (state) {
+      memory.weighted[value]++
+    }
+  }
+
+  function switchCase(fragment) {
+    var first = fragment.charAt(0)
+
+    return (
+      (first.toLowerCase() === first
+        ? first.toUpperCase()
+        : first.toLowerCase()) + fragment.slice(1)
+    )
+  }
+}
+
+};
+__m["./dictionary.js"]=function(module,exports){'use strict'
+
+var parse = __r("./util/dictionary.js")
+
+module.exports = add
+
+// Add a dictionary file.
+function add(buf) {
+  var self = this
+  var index = -1
+  var rule
+  var source
+  var character
+  var offset
+
+  parse(buf, self, self.data)
+
+  // Regenerate compound expressions.
+  while (++index < self.compoundRules.length) {
+    rule = self.compoundRules[index]
+    source = ''
+    offset = -1
+
+    while (++offset < rule.length) {
+      character = rule.charAt(offset)
+      source += self.compoundRuleCodes[character].length
+        ? '(?:' + self.compoundRuleCodes[character].join('|') + ')'
+        : character
+    }
+
+    self.compoundRules[index] = new RegExp(source, 'i')
+  }
+
+  return self
+}
+
+};
+__m["./remove.js"]=function(module,exports){'use strict'
+
+module.exports = remove
+
+// Remove `value` from the checker.
+function remove(value) {
+  var self = this
+
+  delete self.data[value]
+
+  return self
+}
+
+};
+__m["./spell.js"]=function(module,exports){'use strict'
+
+var form = __r("./util/form.js")
+var flag = __r("./util/flag.js")
+
+module.exports = spell
+
+// Check spelling of `word`.
+function spell(word) {
+  var self = this
+  var value = form(self, word, true)
+
+  // Hunspell also provides `root` (root word of the input word), and `compound`
+  // (whether `word` was compound).
+  return {
+    correct: self.correct(word),
+    forbidden: Boolean(
+      value && flag(self.flags, 'FORBIDDENWORD', self.data[value])
+    ),
+    warn: Boolean(value && flag(self.flags, 'WARN', self.data[value]))
+  }
+}
+
+};
+__m["./add.js"]=function(module,exports){'use strict'
+
+var push = __r("./util/add.js")
+
+module.exports = add
+
+var NO_CODES = []
+
+// Add `value` to the checker.
+function add(value, model) {
+  var self = this
+
+  push(self.data, value, self.data[model] || NO_CODES, self)
+
+  return self
+}
+
+};
+__m["./personal.js"]=function(module,exports){'use strict'
+
+module.exports = add
+
+// Add a dictionary.
+function add(buf) {
+  var self = this
+  var lines = buf.toString('utf8').split('\n')
+  var index = -1
+  var line
+  var forbidden
+  var word
+  var flag
+
+  // Ensure there’s a key for `FORBIDDENWORD`: `false` cannot be set through an
+  // affix file so its safe to use as a magic constant.
+  if (self.flags.FORBIDDENWORD === undefined) self.flags.FORBIDDENWORD = false
+  flag = self.flags.FORBIDDENWORD
+
+  while (++index < lines.length) {
+    line = lines[index].trim()
+
+    if (!line) {
+      continue
+    }
+
+    line = line.split('/')
+    word = line[0]
+    forbidden = word.charAt(0) === '*'
+
+    if (forbidden) {
+      word = word.slice(1)
+    }
+
+    self.add(word, line[1])
+
+    if (forbidden) {
+      self.data[word].push(flag)
+    }
+  }
+
+  return self
+}
+
+};
+__m["./index.js"]=function(module,exports){'use strict'
+
+var buffer = __r("is-buffer")
+var affix = __r("./util/affix.js")
+
+module.exports = NSpell
+
+var proto = NSpell.prototype
+
+proto.correct = __r("./correct.js")
+proto.suggest = __r("./suggest.js")
+proto.spell = __r("./spell.js")
+proto.add = __r("./add.js")
+proto.remove = __r("./remove.js")
+proto.wordCharacters = __r("./word-characters.js")
+proto.dictionary = __r("./dictionary.js")
+proto.personal = __r("./personal.js")
+
+// Construct a new spelling context.
+function NSpell(aff, dic) {
+  var index = -1
+  var dictionaries
+
+  if (!(this instanceof NSpell)) {
+    return new NSpell(aff, dic)
+  }
+
+  if (typeof aff === 'string' || buffer(aff)) {
+    if (typeof dic === 'string' || buffer(dic)) {
+      dictionaries = [{dic: dic}]
+    }
+  } else if (aff) {
+    if ('length' in aff) {
+      dictionaries = aff
+      aff = aff[0] && aff[0].aff
+    } else {
+      if (aff.dic) {
+        dictionaries = [aff]
+      }
+
+      aff = aff.aff
+    }
+  }
+
+  if (!aff) {
+    throw new Error('Missing `aff` in dictionary')
+  }
+
+  aff = affix(aff)
+
+  this.data = Object.create(null)
+  this.compoundRuleCodes = aff.compoundRuleCodes
+  this.replacementTable = aff.replacementTable
+  this.conversion = aff.conversion
+  this.compoundRules = aff.compoundRules
+  this.rules = aff.rules
+  this.flags = aff.flags
+
+  if (dictionaries) {
+    while (++index < dictionaries.length) {
+      if (dictionaries[index].dic) {
+        this.dictionary(dictionaries[index].dic)
+      }
+    }
+  }
+}
+
+};
+__m["./word-characters.js"]=function(module,exports){'use strict'
+
+module.exports = wordCharacters
+
+// Get the word characters defined in affix.
+function wordCharacters() {
+  return this.flags.WORDCHARS || null
+}
+
+};
+__m["./util/apply.js"]=function(module,exports){'use strict'
+
+module.exports = apply
+
+// Apply a rule.
+function apply(value, rule, rules, words) {
+  var index = -1
+  var entry
+  var next
+  var continuationRule
+  var continuation
+  var position
+
+  while (++index < rule.entries.length) {
+    entry = rule.entries[index]
+    continuation = entry.continuation
+    position = -1
+
+    if (!entry.match || entry.match.test(value)) {
+      next = entry.remove ? value.replace(entry.remove, '') : value
+      next = rule.type === 'SFX' ? next + entry.add : entry.add + next
+      words.push(next)
+
+      if (continuation && continuation.length) {
+        while (++position < continuation.length) {
+          continuationRule = rules[continuation[position]]
+
+          if (continuationRule) {
+            apply(next, continuationRule, rules, words)
+          }
+        }
+      }
+    }
+  }
+
+  return words
+}
+
+};
+__m["./util/normalize.js"]=function(module,exports){'use strict'
+
+module.exports = normalize
+
+// Normalize `value` with patterns.
+function normalize(value, patterns) {
+  var index = -1
+
+  while (++index < patterns.length) {
+    value = value.replace(patterns[index][0], patterns[index][1])
+  }
+
+  return value
+}
+
+};
+__m["./util/flag.js"]=function(module,exports){'use strict'
+
+module.exports = flag
+
+// Check whether a word has a flag.
+function flag(values, value, flags) {
+  return flags && value in values && flags.indexOf(values[value]) > -1
+}
+
+};
+__m["./util/exact.js"]=function(module,exports){'use strict'
+
+var flag = __r("./util/flag.js")
+
+module.exports = exact
+
+// Check spelling of `value`, exactly.
+function exact(context, value) {
+  var index = -1
+
+  if (context.data[value]) {
+    return !flag(context.flags, 'ONLYINCOMPOUND', context.data[value])
+  }
+
+  // Check if this might be a compound word.
+  if (value.length >= context.flags.COMPOUNDMIN) {
+    while (++index < context.compoundRules.length) {
+      if (context.compoundRules[index].test(value)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+};
+__m["./util/casing.js"]=function(module,exports){'use strict'
+
+module.exports = casing
+
+// Get the casing of `value`.
+function casing(value) {
+  var head = exact(value.charAt(0))
+  var rest = value.slice(1)
+
+  if (!rest) {
+    return head
+  }
+
+  rest = exact(rest)
+
+  if (head === rest) {
+    return head
+  }
+
+  if (head === 'u' && rest === 'l') {
+    return 's'
+  }
+
+  return null
+}
+
+function exact(value) {
+  return value === value.toLowerCase()
+    ? 'l'
+    : value === value.toUpperCase()
+    ? 'u'
+    : null
+}
+
+};
+__m["./util/dictionary.js"]=function(module,exports){'use strict'
+
+var parseCodes = __r("./util/rule-codes.js")
+var add = __r("./util/add.js")
+
+module.exports = parse
+
+// Expressions.
+var whiteSpaceExpression = /\s/g
+
+// Parse a dictionary.
+function parse(buf, options, dict) {
+  // Parse as lines (ignoring the first line).
+  var value = buf.toString('utf8')
+  var last = value.indexOf('\n') + 1
+  var index = value.indexOf('\n', last)
+
+  while (index > -1) {
+    // Some dictionaries use tabs as comments.
+    if (value.charCodeAt(last) !== 9 /* `\t` */) {
+      parseLine(value.slice(last, index), options, dict)
+    }
+
+    last = index + 1
+    index = value.indexOf('\n', last)
+  }
+
+  parseLine(value.slice(last), options, dict)
+}
+
+// Parse a line in dictionary.
+function parseLine(line, options, dict) {
+  var slashOffset = line.indexOf('/')
+  var hashOffset = line.indexOf('#')
+  var codes = ''
+  var word
+  var result
+
+  // Find offsets.
+  while (
+    slashOffset > -1 &&
+    line.charCodeAt(slashOffset - 1) === 92 /* `\` */
+  ) {
+    line = line.slice(0, slashOffset - 1) + line.slice(slashOffset)
+    slashOffset = line.indexOf('/', slashOffset)
+  }
+
+  // Handle hash and slash offsets.
+  // Note that hash can be a valid flag, so we should not just discard
+  // everything after it.
+  if (hashOffset > -1) {
+    if (slashOffset > -1 && slashOffset < hashOffset) {
+      word = line.slice(0, slashOffset)
+      whiteSpaceExpression.lastIndex = slashOffset + 1
+      result = whiteSpaceExpression.exec(line)
+      codes = line.slice(slashOffset + 1, result ? result.index : undefined)
+    } else {
+      word = line.slice(0, hashOffset)
+    }
+  } else if (slashOffset > -1) {
+    word = line.slice(0, slashOffset)
+    codes = line.slice(slashOffset + 1)
+  } else {
+    word = line
+  }
+
+  word = word.trim()
+
+  if (word) {
+    add(dict, word, parseCodes(options.flags, codes.trim()), options)
+  }
+}
+
+};
+__m["./util/affix.js"]=function(module,exports){'use strict'
+
+var parse = __r("./util/rule-codes.js")
+
+module.exports = affix
+
+var push = [].push
+
+// Relative frequencies of letters in the English language.
+var alphabet = 'etaoinshrdlcumwfgypbvkjxqz'.split('')
+
+// Expressions.
+var whiteSpaceExpression = /\s+/
+
+// Defaults.
+var defaultKeyboardLayout = [
+  'qwertzuop',
+  'yxcvbnm',
+  'qaw',
+  'say',
+  'wse',
+  'dsx',
+  'sy',
+  'edr',
+  'fdc',
+  'dx',
+  'rft',
+  'gfv',
+  'fc',
+  'tgz',
+  'hgb',
+  'gv',
+  'zhu',
+  'jhn',
+  'hb',
+  'uji',
+  'kjm',
+  'jn',
+  'iko',
+  'lkm'
+]
+
+// Parse an affix file.
+// eslint-disable-next-line complexity
+function affix(doc) {
+  var rules = Object.create(null)
+  var compoundRuleCodes = Object.create(null)
+  var flags = Object.create(null)
+  var replacementTable = []
+  var conversion = {in: [], out: []}
+  var compoundRules = []
+  var aff = doc.toString('utf8')
+  var lines = []
+  var last = 0
+  var index = aff.indexOf('\n')
+  var parts
+  var line
+  var ruleType
+  var count
+  var remove
+  var add
+  var source
+  var entry
+  var position
+  var rule
+  var value
+  var offset
+  var character
+
+  flags.KEY = []
+
+  // Process the affix buffer into a list of applicable lines.
+  while (index > -1) {
+    pushLine(aff.slice(last, index))
+    last = index + 1
+    index = aff.indexOf('\n', last)
+  }
+
+  pushLine(aff.slice(last))
+
+  // Process each line.
+  index = -1
+
+  while (++index < lines.length) {
+    line = lines[index]
+    parts = line.split(whiteSpaceExpression)
+    ruleType = parts[0]
+
+    if (ruleType === 'REP') {
+      count = index + parseInt(parts[1], 10)
+
+      while (++index <= count) {
+        parts = lines[index].split(whiteSpaceExpression)
+        replacementTable.push([parts[1], parts[2]])
+      }
+
+      index--
+    } else if (ruleType === 'ICONV' || ruleType === 'OCONV') {
+      count = index + parseInt(parts[1], 10)
+      entry = conversion[ruleType === 'ICONV' ? 'in' : 'out']
+
+      while (++index <= count) {
+        parts = lines[index].split(whiteSpaceExpression)
+        entry.push([new RegExp(parts[1], 'g'), parts[2]])
+      }
+
+      index--
+    } else if (ruleType === 'COMPOUNDRULE') {
+      count = index + parseInt(parts[1], 10)
+
+      while (++index <= count) {
+        rule = lines[index].split(whiteSpaceExpression)[1]
+        position = -1
+
+        compoundRules.push(rule)
+
+        while (++position < rule.length) {
+          compoundRuleCodes[rule.charAt(position)] = []
+        }
+      }
+
+      index--
+    } else if (ruleType === 'PFX' || ruleType === 'SFX') {
+      count = index + parseInt(parts[3], 10)
+
+      rule = {
+        type: ruleType,
+        combineable: parts[2] === 'Y',
+        entries: []
+      }
+
+      rules[parts[1]] = rule
+
+      while (++index <= count) {
+        parts = lines[index].split(whiteSpaceExpression)
+        remove = parts[2]
+        add = parts[3].split('/')
+        source = parts[4]
+
+        entry = {
+          add: '',
+          remove: '',
+          match: '',
+          continuation: parse(flags, add[1])
+        }
+
+        if (add && add[0] !== '0') {
+          entry.add = add[0]
+        }
+
+        try {
+          if (remove !== '0') {
+            entry.remove = ruleType === 'SFX' ? end(remove) : remove
+          }
+
+          if (source && source !== '.') {
+            entry.match = ruleType === 'SFX' ? end(source) : start(source)
+          }
+        } catch (_) {
+          // Ignore invalid regex patterns.
+          entry = null
+        }
+
+        if (entry) {
+          rule.entries.push(entry)
+        }
+      }
+
+      index--
+    } else if (ruleType === 'TRY') {
+      source = parts[1]
+      offset = -1
+      value = []
+
+      while (++offset < source.length) {
+        character = source.charAt(offset)
+
+        if (character.toLowerCase() === character) {
+          value.push(character)
+        }
+      }
+
+      // Some dictionaries may forget a character.
+      // Notably `en` forgets `j`, `x`, and `y`.
+      offset = -1
+
+      while (++offset < alphabet.length) {
+        if (source.indexOf(alphabet[offset]) < 0) {
+          value.push(alphabet[offset])
+        }
+      }
+
+      flags[ruleType] = value
+    } else if (ruleType === 'KEY') {
+      push.apply(flags[ruleType], parts[1].split('|'))
+    } else if (ruleType === 'COMPOUNDMIN') {
+      flags[ruleType] = Number(parts[1])
+    } else if (ruleType === 'ONLYINCOMPOUND') {
+      // If we add this ONLYINCOMPOUND flag to `compoundRuleCodes`, then
+      // `parseDic` will do the work of saving the list of words that are
+      // compound-only.
+      flags[ruleType] = parts[1]
+      compoundRuleCodes[parts[1]] = []
+    } else if (
+      ruleType === 'FLAG' ||
+      ruleType === 'KEEPCASE' ||
+      ruleType === 'NOSUGGEST' ||
+      ruleType === 'WORDCHARS'
+    ) {
+      flags[ruleType] = parts[1]
+    } else {
+      // Default handling: set them for now.
+      flags[ruleType] = parts[1]
+    }
+  }
+
+  // Default for `COMPOUNDMIN` is `3`.
+  // See `man 4 hunspell`.
+  if (isNaN(flags.COMPOUNDMIN)) {
+    flags.COMPOUNDMIN = 3
+  }
+
+  if (!flags.KEY.length) {
+    flags.KEY = defaultKeyboardLayout
+  }
+
+  /* istanbul ignore if - Dictionaries seem to always have this. */
+  if (!flags.TRY) {
+    flags.TRY = alphabet.concat()
+  }
+
+  if (!flags.KEEPCASE) {
+    flags.KEEPCASE = false
+  }
+
+  return {
+    compoundRuleCodes: compoundRuleCodes,
+    replacementTable: replacementTable,
+    conversion: conversion,
+    compoundRules: compoundRules,
+    rules: rules,
+    flags: flags
+  }
+
+  function pushLine(line) {
+    line = line.trim()
+
+    // Hash can be a valid flag, so we only discard line that starts with it.
+    if (line && line.charCodeAt(0) !== 35 /* `#` */) {
+      lines.push(line)
+    }
+  }
+}
+
+// Wrap the `source` of an expression-like string so that it matches only at
+// the end of a value.
+function end(source) {
+  return new RegExp(source + '$')
+}
+
+// Wrap the `source` of an expression-like string so that it matches only at
+// the start of a value.
+function start(source) {
+  return new RegExp('^' + source)
+}
+
+};
+__m["./util/add.js"]=function(module,exports){'use strict'
+
+var apply = __r("./util/apply.js")
+
+module.exports = add
+
+var push = [].push
+
+var NO_RULES = []
+
+// Add `rules` for `word` to the table.
+function addRules(dict, word, rules) {
+  var curr = dict[word]
+
+  // Some dictionaries will list the same word multiple times with different
+  // rule sets.
+  if (word in dict) {
+    if (curr === NO_RULES) {
+      dict[word] = rules.concat()
+    } else {
+      push.apply(curr, rules)
+    }
+  } else {
+    dict[word] = rules.concat()
+  }
+}
+
+function add(dict, word, codes, options) {
+  var position = -1
+  var rule
+  var offset
+  var subposition
+  var suboffset
+  var combined
+  var newWords
+  var otherNewWords
+
+  // Compound words.
+  if (
+    !('NEEDAFFIX' in options.flags) ||
+    codes.indexOf(options.flags.NEEDAFFIX) < 0
+  ) {
+    addRules(dict, word, codes)
+  }
+
+  while (++position < codes.length) {
+    rule = options.rules[codes[position]]
+
+    if (codes[position] in options.compoundRuleCodes) {
+      options.compoundRuleCodes[codes[position]].push(word)
+    }
+
+    if (rule) {
+      newWords = apply(word, rule, options.rules, [])
+      offset = -1
+
+      while (++offset < newWords.length) {
+        if (!(newWords[offset] in dict)) {
+          dict[newWords[offset]] = NO_RULES
+        }
+
+        if (rule.combineable) {
+          subposition = position
+
+          while (++subposition < codes.length) {
+            combined = options.rules[codes[subposition]]
+
+            if (
+              combined &&
+              combined.combineable &&
+              rule.type !== combined.type
+            ) {
+              otherNewWords = apply(
+                newWords[offset],
+                combined,
+                options.rules,
+                []
+              )
+              suboffset = -1
+
+              while (++suboffset < otherNewWords.length) {
+                if (!(otherNewWords[suboffset] in dict)) {
+                  dict[otherNewWords[suboffset]] = NO_RULES
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+};
+__m["./util/form.js"]=function(module,exports){'use strict'
+
+var normalize = __r("./util/normalize.js")
+var exact = __r("./util/exact.js")
+var flag = __r("./util/flag.js")
+
+module.exports = form
+
+// Find a known form of `value`.
+function form(context, value, all) {
+  var normal = value.trim()
+  var alternative
+
+  if (!normal) {
+    return null
+  }
+
+  normal = normalize(normal, context.conversion.in)
+
+  if (exact(context, normal)) {
+    if (!all && flag(context.flags, 'FORBIDDENWORD', context.data[normal])) {
+      return null
+    }
+
+    return normal
+  }
+
+  // Try sentence case if the value is uppercase.
+  if (normal.toUpperCase() === normal) {
+    alternative = normal.charAt(0) + normal.slice(1).toLowerCase()
+
+    if (ignore(context.flags, context.data[alternative], all)) {
+      return null
+    }
+
+    if (exact(context, alternative)) {
+      return alternative
+    }
+  }
+
+  // Try lowercase.
+  alternative = normal.toLowerCase()
+
+  if (alternative !== normal) {
+    if (ignore(context.flags, context.data[alternative], all)) {
+      return null
+    }
+
+    if (exact(context, alternative)) {
+      return alternative
+    }
+  }
+
+  return null
+}
+
+function ignore(flags, dict, all) {
+  return (
+    flag(flags, 'KEEPCASE', dict) || all || flag(flags, 'FORBIDDENWORD', dict)
+  )
+}
+
+};
+__m["./util/rule-codes.js"]=function(module,exports){'use strict'
+
+module.exports = ruleCodes
+
+var NO_CODES = []
+
+// Parse rule codes.
+function ruleCodes(flags, value) {
+  var index = 0
+  var result
+
+  if (!value) return NO_CODES
+
+  if (flags.FLAG === 'long') {
+    // Creating an array of the right length immediately
+    // avoiding resizes and using memory more efficiently
+    result = new Array(Math.ceil(value.length / 2))
+
+    while (index < value.length) {
+      result[index / 2] = value.slice(index, index + 2)
+      index += 2
+    }
+
+    return result
+  }
+
+  return value.split(flags.FLAG === 'num' ? ',' : '')
+}
+
+};
+__m["is-buffer"]=function(module,exports){module.exports=function(o){return false}
+};
+function __r(k){if(__c[k])return __c[k].exports;var m={exports:{}};__c[k]=m;__m[k](m,m.exports);return m.exports;}
+var nspell=__r('./index.js');
+/* Notas spell worker: Hunspell dictionaries (wooorm/dictionaries via jsDelivr, cached on the device) */
+var D={},LOADING={},PERSONAL=[];
+var URLS={es:'https://cdn.jsdelivr.net/npm/dictionary-es@4.0.0/index.',en:'https://cdn.jsdelivr.net/npm/dictionary-en@4.0.0/index.'};
+async function get(u){var c=null;try{c=await caches.open('nb-dict-v1');var hit=await c.match(u);if(hit)return hit.text();}catch(e){}
+  var r=await fetch(u);if(!r.ok)throw new Error('dict '+r.status);var t=await r.text();try{c&&await c.put(u,new Response(t));}catch(e){}return t;}
+function ensure(l){if(D[l])return Promise.resolve(D[l]);if(!LOADING[l])LOADING[l]=Promise.all([get(URLS[l]+'aff'),get(URLS[l]+'dic')]).then(function(x){var d=nspell(x[0],x[1]);PERSONAL.forEach(function(w){d.add(w);});D[l]=d;return d;});return LOADING[l];}
+self.onmessage=async function(e){var m=e.data;
+  try{
+    if(m.type==='personal'){PERSONAL=PERSONAL.concat(m.words);Object.keys(D).forEach(function(l){m.words.forEach(function(w){D[l].add(w);});});return;}
+    if(m.type==='check'){await Promise.all(m.langs.map(ensure));var bad=[];
+      m.items.forEach(function(it){var ok=it[0].split('+').some(function(l){return D[l].correct(it[1]);});if(!ok)bad.push(it[0]+'|'+it[1]);});
+      self.postMessage({type:'checked',id:m.id,items:m.items.map(function(it){return it[0]+'|'+it[1];}),bad:bad});return;}
+    if(m.type==='suggest'){var out=[];for(var i=0;i<m.langs.length;i++){var d=await ensure(m.langs[i]);d.suggest(m.word).forEach(function(w){if(out.indexOf(w)<0)out.push(w);});}
+      self.postMessage({type:'sugg',id:m.id,list:out.slice(0,6)});return;}
+  }catch(err){self.postMessage({type:'error',id:m.id,msg:String(err&&err.message||err)});}
+};</script>
 <div id="printArea" aria-hidden="true"></div>
 <div id="toast"></div>
 <div id="palette" role="dialog" aria-label="Colores"></div>
@@ -753,7 +2032,7 @@ body.resizing{cursor:col-resize;user-select:none}
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.10.6';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.7';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -1324,12 +2603,12 @@ async function noteMenu(id,anchor){
   const n=notes.find(x=>x.id===id);if(!n)return;
   const act=await modal(displayTitle(n),null,[
     ...(pinOff?[]:[{label:n.pinned?'Desfijar':'Fijar arriba',value:'pin',icon:n.pinned?'unpin':'pin'}]),
-    {label:'Mover a…',value:'move',icon:'move',more:true},{label:'Compartir…',value:'share',icon:'share',more:true},{label:'Duplicar',value:'dup',icon:'dup'},{label:spellOn?'Desactivar corrector':'Activar corrector',value:'spell',icon:'spell'},...(isMobile()?[]:[{label:'Atajos de teclado',value:'keys',icon:'keys'}]),{label:'Borrar nota',value:'del',icon:'del',cls:'dng'}],
+    {label:'Mover a…',value:'move',icon:'move',more:true},{label:'Compartir…',value:'share',icon:'share',more:true},{label:'Duplicar',value:'dup',icon:'dup'},{label:'Corrector: '+(!spellOn?'desactivado':{auto:'automático',es:'español',en:'inglés'}[SP.langs[id]||'auto']),value:'spell',icon:'spell',more:true},...(isMobile()?[]:[{label:'Atajos de teclado',value:'keys',icon:'keys'}]),{label:'Borrar nota',value:'del',icon:'del',cls:'dng'}],
     {kind:'menu',anchor,sub:n.folder_id?folderPath(n.folder_id):inboxName()});
   if(act==='move'){const t=await askFolder('Mover a…',{current:n.folder_id||INBOX});if(t)moveNote(id,t,'card_menu');}
   else if(act==='pin')togglePin(id);
   else if(act==='keys')showKeys();
-  else if(act==='spell')setSpell(!spellOn,true);
+  else if(act==='spell')spellLangMenu(anchor);
   else if(act==='share')shareNote(id,anchor);
   else if(act==='dup')duplicateNote(id);
   else if(act==='del')deleteNote(id);
@@ -1554,6 +2833,7 @@ function openNote(id){
   loadDoc(docOf(n));
   renderList();renderEditor();
   if(find.on&&$('ebody').dataset.nid!==id)closeFind(false);
+  SP.bad=[];CSS.highlights&&CSS.highlights.delete('nb-spell');if(spellOn&&SPELL_OWN)spellSoon(250);
   {const sameNote=$('ebody').dataset.nid===id;$('ebody').dataset.nid=id;if(!sameNote)$('ebody').scrollTop=0;window.updHead&&updHead();}
   if(isMobile())view('note');
   if(d){setStatus('saving');scheduleSave(0);}else setStatus('saved');
@@ -1641,6 +2921,7 @@ function closeFind(toText,fromBack){
   if(toText&&cur){ED().focus({preventScroll:true});if(r){const s=getSelection();s.removeAllRanges();s.addRange(r);savedRange=r.cloneRange();}}
 }
 function onType(){
+  if(spellOn&&SPELL_OWN)spellSoon(700);
   if(find.on){clearTimeout(find.t);find.t=setTimeout(()=>runFind(true),150);}
   if(!cur)return;
   const body=getBody(),title=getTitle();
@@ -1855,16 +3136,113 @@ function plainFirstLine(){ // the canvas' first line is ordinary text: notes fro
   const f=ED().firstElementChild;
   if(f&&f.tagName==='H1'){const p=document.createElement('p');p.append(...f.childNodes);if(f.dataset.indent)p.dataset.indent=f.dataset.indent;f.replaceWith(p);}
 }
-// SPELLING (v0.10.2): the browser's / phone keyboard's own checker (all the languages you enabled there, e.g.
-// Spanish + English); the app only turns it on or off. No dictionary is shipped and no text leaves the device.
+// SPELLING (v0.10.7): the app's own checker — Spanish and English Hunspell dictionaries (downloaded once from
+// jsDelivr and cached on the device; no note text ever leaves it), run in a worker. Language per paragraph:
+// automatic (detected; a word is accepted if it is right in either language) or fixed per note (Español / English).
+// Mistakes are underlined with the CSS Highlight API (the note is never modified); right-click (tap on phones)
+// shows suggestions, "Añadir al diccionario", "Ignorar". Browsers without the Highlight API keep the native checker.
 let spellOn=true;try{spellOn=localStorage.getItem('nb-spell')!=='0';}catch(e){}
-function setSpell(on,announce){
-  spellOn=on;try{localStorage.setItem('nb-spell',on?'1':'0');}catch(e){}
-  const e=ED(),t=$('ttl');e.spellcheck=on;t.spellcheck=on;e.setAttribute('autocorrect',on?'on':'off');
-  if(on&&document.activeElement===e){e.blur();e.focus({preventScroll:true});restoreSel();} // re-check what's already written
-  if(announce){toast(on?'Corrector activado. Para revisar español e inglés a la vez, activa los dos idiomas en el corrector del navegador (Ajustes → Idiomas) o en el teclado del móvil.':'Corrector desactivado en este dispositivo.',on?7000:2600);
-    track('spellcheck_toggled',{on});}
+const SPELL_OWN=typeof CSS!=='undefined'&&!!CSS.highlights&&typeof Highlight!=='undefined'&&typeof Worker!=='undefined';
+const SP={w:null,seq:0,wait:new Map(),cache:new Map(),timer:null,ignored:new Set(),bad:[],
+  personal:new Set((()=>{try{return JSON.parse(localStorage.getItem('nb-dict-personal')||'[]');}catch(e){return [];}})()),
+  langs:(()=>{try{return JSON.parse(localStorage.getItem('nb-spell-lang')||'{}');}catch(e){return {};}})()};
+const ES_W=new Set('el la los las de del que y en un una unos unas por con para es son al lo como más pero sus su se le les ha han me mi si sí sin sobre este esta estos estas ya entre cuando todo todos también fue era muy hasta desde está están porque qué cómo dónde hay puede tiene nos ni uno donde bien mismo ese esa eso ahora cada otro otra después te aunque hace tan durante siempre día tanto ella él sido según menos antes estado hacer tengo tenemos vamos hoy mañana ayer'.split(' '));
+const EN_W=new Set('the of and to in is it you that he was for on are with as his they be at one have this from or had by not but what all were we when your can said there an each which she do how their if will up other about out many then them these so some her would make like him into time has look two more write go see no way could people my than first been who its now find long down day did get come made may why need does what our just over also new because any most us should'.split(' '));
+function detectLang(t){
+  const ws=(t.toLowerCase().match(/[\p{L}']+/gu)||[]);if(ws.length<2&&!/[ñ¿¡áéíóú]/i.test(t))return null;
+  let es=/[ñ¿¡]/.test(t)?2:0,en=0;for(const w of ws){if(ES_W.has(w))es++;if(EN_W.has(w))en++;if(/[áéíóú]/.test(w))es+=.5;}
+  return es===en?null:es>en?'es':'en';
 }
+const noteLangMode=()=>cur?(SP.langs[cur.id]||'auto'):'auto';
+function spellWorker(){
+  if(SP.w)return SP.w;
+  const src=$('spellWorkerSrc').textContent;
+  SP.w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+  SP.w.onmessage=e=>{const m=e.data,f=SP.wait.get(m.id);if(f){SP.wait.delete(m.id);f(m);}};
+  if(SP.personal.size)SP.w.postMessage({type:'personal',words:[...SP.personal]});
+  return SP.w;
+}
+function spellAsk(msg){return new Promise(res=>{const id=++SP.seq;SP.wait.set(id,res);spellWorker().postMessage({...msg,id});});}
+function spellWords(){ // [{node,start,end,word,langs}] for every checkable word in the note
+  const e=ED(),mode=noteLangMode(),out=[];const blocks=new Map();
+  const noteL=detectLang(e.textContent)||'es';
+  const w=document.createTreeWalker(e,NodeFilter.SHOW_TEXT,{acceptNode:t=>t.parentNode.closest('[data-ui],code,pre,a')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
+  const sel=getSelection(),caretN=sel.rangeCount&&sel.isCollapsed?sel.anchorNode:null,caretO=sel.anchorOffset;
+  let t;while((t=w.nextNode())){
+    const blk=t.parentNode.closest('p,li,h1,h2,h3,td,th,blockquote,div')||e;
+    let L=blocks.get(blk);if(!L){L=mode!=='auto'?mode:(detectLang(blk.textContent)||noteL);blocks.set(blk,L);}
+    const langs=mode==='auto'?(L==='es'?'es+en':'en+es'):mode;
+    const re=/[\p{L}\p{M}]+(?:['’][\p{L}]+)*/gu;let m;
+    while((m=re.exec(t.nodeValue))){
+      const word=m[0],st=m.index,en=st+word.length;
+      if(word.length<2||/\d/.test(word)||word===word.toUpperCase()||/[a-záéíóúñ][A-ZÁÉÍÓÚÑ]/.test(word))continue; // acronyms, camelCase
+      if(t===caretN&&caretO>=st&&caretO<=en&&document.activeElement===e)continue; // the word you're typing
+      if(SP.personal.has(word.toLowerCase())||SP.ignored.has(word))continue;
+      out.push({node:t,start:st,end:en,word,langs});
+    }
+  }
+  return out;
+}
+async function spellCheck(){
+  if(!SPELL_OWN||!spellOn||!cur){CSS.highlights&&CSS.highlights.delete('nb-spell');SP.bad=[];return;}
+  const words=spellWords(),need=[],seen=new Set();
+  for(const x of words){const k=x.langs+'|'+x.word;if(!SP.cache.has(k)&&!seen.has(k)){seen.add(k);need.push([x.langs,x.word]);}}
+  if(need.length){
+    const langs=[...new Set(need.flatMap(n=>n[0].split('+')))];
+    const r=await spellAsk({type:'check',langs,items:need});
+    if(r.type==='error'){CSS.highlights.delete('nb-spell');return;} // offline before the first download: no underlines, nothing breaks
+    const bad=new Set(r.bad);r.items.forEach(k=>SP.cache.set(k,!bad.has(k)));
+  }
+  if(!cur)return;
+  SP.bad=words.filter(x=>x.node.isConnected&&SP.cache.get(x.langs+'|'+x.word)===false).map(x=>{const r=document.createRange();r.setStart(x.node,x.start);r.setEnd(x.node,x.end);return {r,word:x.word,langs:x.langs};});
+  CSS.highlights.set('nb-spell',new Highlight(...SP.bad.map(b=>b.r)));
+}
+function spellSoon(ms=600){clearTimeout(SP.timer);SP.timer=setTimeout(spellCheck,ms);}
+function spellAt(x,y){ // the underlined word under a point
+  const c=document.caretRangeFromPoint?document.caretRangeFromPoint(x,y):null;if(!c)return null;
+  return SP.bad.find(b=>b.r.startContainer===c.startContainer&&c.startOffset>=b.r.startOffset&&c.startOffset<=b.r.endOffset)||null;
+}
+async function spellMenu(b,x,y){
+  const rect=b.r.getBoundingClientRect(),anchor={getBoundingClientRect:()=>rect,isConnected:true};
+  const ls=b.langs.split('+');let list=[];
+  for(const l of ls){const sg=await spellAsk({type:'suggest',word:b.word,langs:[l]});list=(sg.list||[]).filter(w=>w!==b.word).slice(0,5);if(list.length)break;} // the paragraph's language first
+  const act=await modal('“'+b.word+'”',null,[
+    ...list.map(w=>({label:w,value:'s:'+w,icon:'edit'})),
+    ...(list.length?[]:[{label:'Sin sugerencias',value:'none',icon:'spell'}]),
+    {label:'Añadir al diccionario',value:'add',icon:'sub'},{label:'Ignorar en esta sesión',value:'ign',icon:'reset'}],
+    {kind:'menu',anchor,sub:'Corrector · '+({es:'Español',en:'English','es+en':'Español / English','en+es':'English / Español'}[b.langs]||b.langs)});
+  if(!act||act==='none')return;
+  if(act.startsWith('s:')){
+    const w=act.slice(2);ED().focus({preventScroll:true});const s=getSelection();s.removeAllRanges();s.addRange(b.r);
+    run('insertText',w);onType();track('spell_fixed',{lang:b.langs.slice(0,2)});
+  }else if(act==='add'){
+    const k=b.word.toLowerCase();SP.personal.add(k);try{localStorage.setItem('nb-dict-personal',JSON.stringify([...SP.personal]));}catch(e){}
+    spellWorker().postMessage({type:'personal',words:[b.word,k]});toast('“'+b.word+'” añadida a tu diccionario en este dispositivo.');
+  }else if(act==='ign')SP.ignored.add(b.word);
+  spellCheck();
+}
+async function spellLangMenu(anchor){
+  const m=noteLangMode(),mark=v=>(spellOn&&m===v?'✓ ':'');
+  const act=await modal('Corrector',null,[
+    {label:mark('auto')+'Automático (español / inglés)',value:'auto',icon:'spell'},
+    {label:mark('es')+'Español',value:'es',icon:'spell'},{label:mark('en')+'English',value:'en',icon:'spell'},
+    {label:(spellOn?'':'✓ ')+'Desactivado',value:'off',icon:'reset'}],
+    {kind:'menu',anchor,sub:'Idioma de esta nota · el automático detecta cada párrafo'});
+  if(!act)return;
+  if(act==='off'){setSpell(false,true);return;}
+  if(cur){if(act==='auto')delete SP.langs[cur.id];else SP.langs[cur.id]=act;try{localStorage.setItem('nb-spell-lang',JSON.stringify(SP.langs));}catch(e){}}
+  setSpell(true,false);toast(act==='auto'?'Corrector automático: detecta español e inglés por párrafo.':'Corrector en '+(act==='es'?'español':'inglés')+' para esta nota.');
+  track('spell_lang',{mode:act});
+}
+function setSpell(on,announce,boot){
+  spellOn=on;if(!boot)try{localStorage.setItem('nb-spell',on?'1':'0');}catch(e){} // start-up only applies the saved choice, never rewrites it
+  const e=ED(),t=$('ttl'),native=on&&!SPELL_OWN; // the app's checker replaces the browser's (which only knows the languages set in the browser)
+  e.spellcheck=native;t.spellcheck=on;e.setAttribute('autocorrect',on?'on':'off');
+  if(on)spellSoon(50);else{CSS.highlights&&CSS.highlights.delete('nb-spell');SP.bad=[];}
+  if(announce){toast(on?'Corrector activado.':'Corrector desactivado en este dispositivo.');track('spellcheck_toggled',{on});}
+}
+ED().addEventListener('contextmenu',e=>{if(!SPELL_OWN||!spellOn)return;const b=spellAt(e.clientX,e.clientY);if(b){e.preventDefault();spellMenu(b);}});
+ED().addEventListener('click',e=>{if(!SPELL_OWN||!spellOn||!isMobile()||!getSelection().isCollapsed)return;const b=spellAt(e.clientX,e.clientY);if(b)spellMenu(b);}); // phones: tap an underlined word
 function getTitle(){return $('ttl').value.trim();}
 function setTitle(t){$('ttl').value=t||'';}
 function loadDoc(d){setTitle(d.title);setBody(d.body);}
@@ -2468,7 +3846,7 @@ function placeChrome(){
 }
 new ResizeObserver(()=>{const f=$('fmt');f.classList.toggle('ovf',!isMobile()&&f.scrollWidth>f.clientWidth+1&&f.scrollLeft+f.clientWidth<f.scrollWidth-2);}).observe($('fbar'));
 $('fmt').addEventListener('scroll',()=>{const f=$('fmt');f.classList.toggle('ovf',f.scrollLeft+f.clientWidth<f.scrollWidth-2);},{passive:true});
-setSpell(spellOn,false);
+setSpell(spellOn,false,true);
 placeChrome();matchMedia('(max-width:820px)').addEventListener('change',()=>{placeChrome();window.updHead&&updHead();});
 // ── NOTE HEADER (desktop): sticky; condensed once you scroll into the text ──
 (function(){const body=$('ebody'),head=$('ehead');let on=false;
