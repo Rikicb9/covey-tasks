@@ -20,6 +20,9 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.10.8 (2026-11-07): lists from a Tab gap — after Tab (or a gap of spaces) a "-" alone starts a bullet list
+  at that indent; the list buttons keep the line's indent; a gap of spaces + Tab becomes real indent. Corrector: the
+  system's own spelling underline, suggestions only on right-click / long-press, everyday words (chatbot, email…) accepted.
   Notebook v0.10.7 (2026-11-07): the app's own spell checker (Spanish + English). Automatic: detects the
   language of each paragraph and accepts a word that is right in either language; or fixed per note
   (⋯ → Corrector: Automático / Español / English / Desactivado). Right-click (tap on phones) an underlined
@@ -378,7 +381,8 @@ body.resizing{cursor:col-resize;user-select:none}
 .pinm{color:#B45309;margin-right:5px;vertical-align:-1px;display:inline-flex}
 #bPin.on{color:#B45309;background:#FEF3C7}
 #bPin[hidden],#bFocus[hidden],#bFind[hidden]{display:none}
-::highlight(nb-spell){text-decoration:underline wavy #DC2626;text-decoration-skip-ink:none;text-underline-offset:3px}
+::highlight(nb-spell){text-decoration:underline wavy #E5484D 1px;text-decoration-skip-ink:none;text-underline-offset:2px}
+@supports (text-decoration-line:spelling-error){::highlight(nb-spell){text-decoration:none;text-decoration-line:spelling-error}} /* same underline as the system's own corrector */
 /* v0.10.4 find in note */
 #findbar{display:flex;align-items:center;gap:4px;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--mut);max-width:520px;box-shadow:0 2px 8px rgba(28,25,23,.06)}
 #findbar[hidden]{display:none}
@@ -646,7 +650,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.10.7 · 2026.11.07</div>
+    <div class="ver" id="ver">Notebook v0.10.8 · 2026.11.07</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -2032,7 +2036,7 @@ self.onmessage=async function(e){var m=e.data;
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.10.7';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.10.8';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
@@ -3163,6 +3167,8 @@ function spellWorker(){
   return SP.w;
 }
 function spellAsk(msg){return new Promise(res=>{const id=++SP.seq;SP.wait.set(id,res);spellWorker().postMessage({...msg,id});});}
+const SPELL_EXTRA=new Set(('chatbot chatbots email emails online offline app apps smartphone smartphones startup startups blog blogs login logout wifi podcast podcasts hashtag hashtags emoji emojis website websites webinar webinars frontend backend dataset datasets workflow workflows onboarding offboarding feedback coaching stakeholder stakeholders fintech prompt prompts copilot chatgpt claude google youtube linkedin whatsapp instagram tiktok '+
+  'zoom teams slack notion github supabase excel powerpoint outlook iphone ipad android dashboard dashboards bootcamp bootcamps freelance freelancer networking marketing branding influencer influencers streaming software hardware cloud chat chats link links click clicks reset backup backups').split(' ')); // common words missing from both dictionaries
 function spellWords(){ // [{node,start,end,word,langs}] for every checkable word in the note
   const e=ED(),mode=noteLangMode(),out=[];const blocks=new Map();
   const noteL=detectLang(e.textContent)||'es';
@@ -3177,7 +3183,7 @@ function spellWords(){ // [{node,start,end,word,langs}] for every checkable word
       const word=m[0],st=m.index,en=st+word.length;
       if(word.length<2||/\d/.test(word)||word===word.toUpperCase()||/[a-záéíóúñ][A-ZÁÉÍÓÚÑ]/.test(word))continue; // acronyms, camelCase
       if(t===caretN&&caretO>=st&&caretO<=en&&document.activeElement===e)continue; // the word you're typing
-      if(SP.personal.has(word.toLowerCase())||SP.ignored.has(word))continue;
+      if(SP.personal.has(word.toLowerCase())||SP.ignored.has(word)||SPELL_EXTRA.has(word.toLowerCase()))continue;
       out.push({node:t,start:st,end:en,word,langs});
     }
   }
@@ -3242,7 +3248,7 @@ function setSpell(on,announce,boot){
   if(announce){toast(on?'Corrector activado.':'Corrector desactivado en este dispositivo.');track('spellcheck_toggled',{on});}
 }
 ED().addEventListener('contextmenu',e=>{if(!SPELL_OWN||!spellOn)return;const b=spellAt(e.clientX,e.clientY);if(b){e.preventDefault();spellMenu(b);}});
-ED().addEventListener('click',e=>{if(!SPELL_OWN||!spellOn||!isMobile()||!getSelection().isCollapsed)return;const b=spellAt(e.clientX,e.clientY);if(b)spellMenu(b);}); // phones: tap an underlined word
+// suggestions only on right-click (desktop) or long-press where the phone sends a context menu (Android); a normal click just places the caret
 function getTitle(){return $('ttl').value.trim();}
 function setTitle(t){$('ttl').value=t||'';}
 function loadDoc(d){setTitle(d.title);setBody(d.body);}
@@ -3271,8 +3277,10 @@ function unwrapListsFromParas(){ // Chrome can produce <p><ul>…</ul></p>: inva
     if([...p.childNodes].every(n=>n===l||(n.nodeType===3&&!n.nodeValue.trim())||n.nodeName==='BR'))p.replaceWith(l);else p.after(l);
     if(r){s.removeAllRanges();s.addRange(r);}});
 }
-function cmdList(kind){ // ul | ol | checklist, each toggles
+function cmdList(kind){ // ul | ol | checklist, each toggles; a list made from an indented line starts at that indent
   const li=closestInEd('li'),list=li&&li.parentNode;
+  const b0=!li&&currentBlock(),ind0=b0&&/^(P|H1|H2|H3)$/.test(b0.tagName)?Math.min(6,+(b0.dataset.indent||0)+spaceLevels(b0.textContent)):0;
+  const box0=b0&&b0.parentNode,prev0=b0&&b0.previousElementSibling;
   const isCl=list&&list.tagName==='UL'&&list.classList.contains('checklist');
   if(kind==='checklist'){
     if(isCl){run('insertUnorderedList');}
@@ -3283,6 +3291,11 @@ function cmdList(kind){ // ul | ol | checklist, each toggles
   }else if(kind==='ul'&&isCl){list.classList.remove('checklist');list.querySelectorAll(':scope>li').forEach(x=>x.removeAttribute('data-done'));}
   else run(kind==='ul'?'insertUnorderedList':'insertOrderedList');
   unwrapListsFromParas();
+  if(b0&&!b0.isConnected){ // the line became a list: keep its indent and leave the caret inside it (Chrome can leave it on the editor itself)
+    let l=closestInEd('ul,ol');if(!l||l.parentNode.closest('ul,ol'))l=prev0&&prev0.parentNode===box0?prev0.nextElementSibling:box0&&box0.firstElementChild;
+    if(l&&/^(UL|OL)$/.test(l.tagName)){
+      if(ind0){l.dataset.indent=ind0;l.querySelectorAll('li[data-indent]').forEach(x=>x.removeAttribute('data-indent'));trimListStarts(l);}
+      const sel=getSelection(),a=sel.anchorNode;if(!a||a===ED()||!l.contains(a)){const li1=l.querySelector('li');if(li1){const r=document.createRange();r.selectNodeContents(li1);r.collapse(false);sel.removeAllRanges();sel.addRange(r);}}}}
 }
 function cmdHeading(){const b=currentBlock();run('formatBlock',b&&b.tagName==='H2'?'<p>':'<h2>');}
 function exec(cmd){
@@ -3376,17 +3389,22 @@ $('linkchip').onclick=()=>{const h=$('linkchip').dataset.href;if(h&&/^(https?:\/
 // editor events
 ED().addEventListener('input',e=>{
   if(e.inputType==='insertText'&&e.data===' ')autoFormat();
+  else if(e.inputType==='insertText'&&(e.data==='-'||e.data==='*'))autoFormat(true);
   if(e.inputType==='insertText'&&e.data==='/'){const b=currentBlock();if(b&&b.textContent.replace(/\u00a0/g,' ').trim()==='/')openSlash(b,'slash');}
   else if(slash.open)filterSlash();
   decorate();onType();
 });
-function autoFormat(){ // "- ", "1. ", "[] ", "# ", "## " at the start of a line (spaces before the mark are ignored)
+function spaceLevels(t){ // leading blanks typed as a gap → indent levels (a Tab gap = 4 columns)
+  let c=0;for(const ch of t){if(ch==='\t')c+=4;else if(ch===' '||ch==='\u00a0')c++;else break;}return Math.floor(c/4);}
+function autoFormat(dash){ // "- ", "1. ", "[] ", "# ", "## " at the start of a line (spaces before the mark are ignored); on an indented line "-" alone is enough
   const b=currentBlock();if(!b||b.tagName==='LI'&&b.parentNode.tagName!=='UL'&&b.parentNode.tagName!=='OL')return;
-  const t=b.textContent.replace(/ /g,' ');
-  const rules=[[/^\s*[-*] $/,'ul'],[/^\s*1[.)] $/,'ol'],[/^\s*\[ ?\] $/,'checklist'],[/^\s*# $/,'h2'],[/^\s*## $/,'h3']];
+  const t=b.textContent.replace(/\u00a0/g,' ');
+  const rules=dash?[[/^\s*[-*]$/,'ul']]:[[/^\s*[-*] $/,'ul'],[/^\s*1[.)] $/,'ol'],[/^\s*\[ ?\] $/,'checklist'],[/^\s*# $/,'h2'],[/^\s*## $/,'h3']];
   const hit=rules.find(([re])=>re.test(t));if(!hit)return;
   if(b.tagName==='LI'&&hit[1]!=='checklist')return;
-  const ind=b.tagName!=='LI'?+(b.dataset.indent||0):0; // a line indented with Tab keeps its indent as a list
+  const ind=b.tagName!=='LI'?Math.min(6,+(b.dataset.indent||0)+spaceLevels(t)):0; // a line indented with Tab (or a gap of spaces) keeps its indent as a list
+  if(dash&&!ind)return;
+  pushCustom(); // Ctrl+Z gives back the typed mark as text
   const box=b.parentNode,prev=b.previousElementSibling;
   b.innerHTML='<br>';const r=document.createRange();r.setStart(b,0);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);
   if(hit[1]==='h2'||hit[1]==='h3')run('formatBlock','<'+hit[1]+'>');
@@ -3925,8 +3943,15 @@ function indentBlock(out){
   const li=closestInEd('li');
   if(li){const done=li.getAttribute('data-done');run(out?'outdent':'indent');fixLists(done);afterFormat(out?'outdent':'indent');return true;}
   const b=currentBlock();if(!b||!/^(P|H1|H2|H3)$/.test(b.tagName))return false;
-  const n=+(b.dataset.indent||0),m=Math.max(0,Math.min(6,n+(out?-1:1)));if(m===n)return false;
-  pushCustom();if(m)b.dataset.indent=m;else b.removeAttribute('data-indent');afterFormat(out?'outdent':'indent');return true;
+  const gap=out?0:spaceLevels(b.textContent); // a gap of spaces typed before becomes real indent
+  const n=+(b.dataset.indent||0),m=Math.max(0,Math.min(6,n+gap+(out?-1:1)));if(m===n)return false;
+  pushCustom();if(gap)stripLead(b);if(m)b.dataset.indent=m;else b.removeAttribute('data-indent');afterFormat(out?'outdent':'indent');return true;
+}
+function stripLead(b){ // drop the blanks at the start of a line, caret back at its start if it was inside them
+  const s=getSelection(),inGap=atBlockStart(b);let n;const w=document.createTreeWalker(b,NodeFilter.SHOW_TEXT);
+  while((n=w.nextNode())){const v=n.nodeValue.replace(/^[\s\u00a0]+/,'');if(v){n.nodeValue=v;break;}n.nodeValue='';}
+  if(!b.textContent&&!b.querySelector('br,img'))b.appendChild(document.createElement('br'));
+  if(inGap){const r=document.createRange();r.setStart(b,0);r.collapse(true);s.removeAllRanges();s.addRange(r);}
 }
 // Backspace at the start of a line undoes its formatting one step at a time before joining lines (v0.9.4):
 // list item → outdent one level, then plain paragraph; indented paragraph/heading → one indent level less.
