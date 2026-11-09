@@ -1,4 +1,4 @@
-/* Covey bug reports (shared by Covey Tasks and Notas) — v1.0, 2026-11-08
+/* Covey bug reports (shared by Covey Tasks and Notas) — v1.1, 2026-11-09 (button: indigo pill "¿Algo falla?" with a speech-bubble icon, was a faint grey bug)
    A small floating 🐞 button on every screen opens a chat-style panel: describe the problem, attach up to
    3 screenshots (images only), send. Reports go to a Google Apps Script web app that saves them in the
    "Covey bug reports" sheet (see tools/bug-reports-apps-script.gs). Nothing is sent automatically:
@@ -12,14 +12,14 @@
   const endpoint = () => window.COVEY_FEEDBACK_ENDPOINT || ENDPOINT; // tests can point it elsewhere
 
   const css = `
-#fbFab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:900;width:40px;height:40px;border-radius:50%;
-  border:1px solid rgba(0,0,0,.08);background:#fff;color:#57534e;box-shadow:0 2px 10px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;
-  cursor:pointer;opacity:.72;transition:opacity .15s,transform .15s;padding:0;-webkit-tap-highlight-color:transparent}
-#fbFab:hover,#fbFab:focus-visible{opacity:1;transform:scale(1.05)}
-#fbFab:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}
-#fbFab svg{width:20px;height:20px}
+#fbFab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:900;height:44px;min-width:44px;border-radius:22px;
+  border:0;background:#4f46e5;color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.35),0 1px 3px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;gap:7px;
+  cursor:pointer;padding:0 16px 0 13px;font:600 14px/1 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;transition:transform .15s,box-shadow .15s,background .15s;-webkit-tap-highlight-color:transparent}
+#fbFab:hover,#fbFab:focus-visible{background:#4338ca;transform:translateY(-1px);box-shadow:0 6px 18px rgba(79,70,229,.45),0 1px 3px rgba(0,0,0,.15)}
+#fbFab:focus-visible{outline:2px solid #4f46e5;outline-offset:3px}
+#fbFab svg{width:20px;height:20px;flex:none}
 body.fb-typing #fbFab,body.focus #fbFab,body.fb-open #fbFab{display:none}
-@media (max-width:819px){#fbFab{bottom:calc(88px + env(safe-area-inset-bottom,0px));right:14px;width:38px;height:38px}}
+@media (max-width:819px){#fbFab{bottom:calc(88px + env(safe-area-inset-bottom,0px));right:14px;width:48px;height:48px;border-radius:50%;padding:0}#fbFab .fbl{display:none}#fbFab svg{width:24px;height:24px}}
 @media print{#fbFab,#fbPanel{display:none!important}}
 #fbPanel{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(380px,calc(100vw - 32px));height:min(560px,calc(100vh - 32px));
   background:#fff;color:#1c1917;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.22);display:none;flex-direction:column;overflow:hidden;
@@ -54,9 +54,10 @@ body.fb-typing #fbFab,body.focus #fbFab,body.fb-open #fbFab{display:none}
 #fbSend{background:#4f46e5;color:#fff;padding:0 14px}
 #fbSend:disabled{opacity:.45;cursor:default}
 #fbFile{display:none}
-@media (prefers-color-scheme:dark){html[data-theme=dark] #fbFab{background:#292524;color:#e7e5e4}}`;
+`;
 
-  const BUG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>';
+  // speech bubble with "!" (Lucide message-circle-warning): reads as "tell us what went wrong"
+  const BUG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>';
   const CLIP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>';
 
   let shots = [], sending = false, lastFocus = null;
@@ -168,7 +169,7 @@ body.fb-typing #fbFab,body.focus #fbFab,body.fb-open #fbFab{display:none}
     if (!endpoint() || $('fbFab')) return;
     const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     const fab = document.createElement('button');
-    fab.id = 'fbFab'; fab.type = 'button'; fab.title = 'Reportar un problema'; fab.setAttribute('aria-label', 'Reportar un problema'); fab.innerHTML = BUG;
+    fab.id = 'fbFab'; fab.type = 'button'; fab.title = 'Reportar un problema'; fab.setAttribute('aria-label', 'Reportar un problema'); fab.innerHTML = BUG + '<span class="fbl">¿Algo falla?</span>';
     fab.onclick = open;
     const p = document.createElement('div');
     p.id = 'fbPanel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-modal', 'false'); p.setAttribute('aria-label', 'Reportar un problema');
