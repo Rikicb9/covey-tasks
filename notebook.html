@@ -3637,7 +3637,7 @@ const isFlow=()=>ED().classList.contains('flow');
 const uiEl=(tag,cls,attrs={},...kids)=>el(tag,{class:cls,'data-ui':'1',contenteditable:'false',...attrs},...kids);
 const contentKids=box=>[...box.children].filter(c=>!c.hasAttribute('data-ui'));
 function orderFloats(){ // desktop: each block goes after the last text block above it, so phones (flow) show it in place
-  const e=ED();if(isFlow())return;
+  const e=ED();if(isFlow()||e.clientWidth<640)return; // only with the real desktop layout: hidden (phone list screen) every offsetTop is 0 and all blocks went to the end (v0.11.2)
   const free=n=>n.classList.contains('float')&&n.hasAttribute('data-y');
   const blocks=contentKids(e).filter(n=>!free(n)).map(b=>({b,t:b.offsetTop}));
   const fl=[...e.querySelectorAll(':scope>div.float[data-y]')].sort((a,b)=>(+a.dataset.y||0)-(+b.dataset.y||0)||(+a.dataset.x||0)-(+b.dataset.x||0));
@@ -3674,7 +3674,8 @@ function fitCanvas(){
   let b=0;e.querySelectorAll(':scope>div.float').forEach(f=>{b=Math.max(b,f.offsetTop+f.offsetHeight);});
   e.style.minHeight=b?`max(55dvh, ${b+80}px)`:'';
 }
-new ResizeObserver(()=>{const e=ED(),f=e.clientWidth>0&&e.clientWidth<640;if(f!==isFlow()){e.classList.toggle('flow',f);decorate();}}).observe($('ed'));
+new ResizeObserver(()=>{const e=ED();if(!e.clientWidth)return;const f=e.clientWidth<640; // hidden: keep the last layout (v0.11.2)
+ if(f!==isFlow()){e.classList.toggle('flow',f);decorate();}}).observe($('ed'));
 function caretInto(node,atEnd=false){const r=document.createRange();r.selectNodeContents(node);r.collapse(!atEnd);const s=getSelection();s.removeAllRanges();s.addRange(r);savedRange=r.cloneRange();}
 function createFloat(x,y){
   const e=ED(),f=document.createElement('div');f.className='float';
