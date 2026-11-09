@@ -5,7 +5,7 @@
    only the text and screenshots the person adds, plus app, version, screen and device. */
 (function () {
   'use strict';
-  const ENDPOINT = ''; // Apps Script web app URL (…/exec). Empty = the button stays hidden.
+  const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwbKxCLTWTA36LTptlJQMSia_ROwdG4w5ziXNhR1R504VDJ9zaS25CG-ZFnEAp1sEqW/exec'; // Apps Script web app (tools/bug-reports-apps-script.gs). Empty = the button stays hidden.
   const MAX_SHOTS = 3, MAX_SIDE = 1600, MAX_TEXT = 5000;
   const DRAFT_KEY = 'covey-bug-draft';
   if (window.__coveyFeedback) return; window.__coveyFeedback = true;
