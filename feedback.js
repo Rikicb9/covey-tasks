@@ -1,4 +1,6 @@
-/* Covey bug reports (shared by Covey Tasks and Notas) — v1.1, 2026-11-09 (button: indigo pill "¿Algo falla?" with a speech-bubble icon, was a faint grey bug)
+/* Covey bug reports (shared by Covey Tasks and Notas) — v1.2, 2026-11-11 (desktop: only the speech-bubble icon in the bottom-right margin; on hover
+   or keyboard focus it opens into the "¿Algo falla?" pill; phones: icon only, as before. Apps keep a right margin free for it: Notas does)
+   v1.1, 2026-11-09 (button: indigo pill "¿Algo falla?" with a speech-bubble icon, was a faint grey bug)
    A small floating 🐞 button on every screen opens a chat-style panel: describe the problem, attach up to
    3 screenshots (images only), send. Reports go to a Google Apps Script web app that saves them in the
    "Covey bug reports" sheet (see tools/bug-reports-apps-script.gs). Nothing is sent automatically:
@@ -14,8 +16,11 @@
   const css = `
 #fbFab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:900;height:44px;min-width:44px;border-radius:22px;
   border:0;background:#4f46e5;color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.35),0 1px 3px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;gap:7px;
-  cursor:pointer;padding:0 16px 0 13px;font:600 14px/1 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;transition:transform .15s,box-shadow .15s,background .15s;-webkit-tap-highlight-color:transparent}
-#fbFab:hover,#fbFab:focus-visible{background:#4338ca;transform:translateY(-1px);box-shadow:0 6px 18px rgba(79,70,229,.45),0 1px 3px rgba(0,0,0,.15)}
+  cursor:pointer;padding:0 12px;font:600 14px/1 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;transition:transform .15s,box-shadow .15s,background .15s,padding .18s,gap .18s;-webkit-tap-highlight-color:transparent}
+#fbFab{right:20px;gap:0}
+#fbFab .fbl{max-width:0;opacity:0;overflow:hidden;white-space:nowrap;transition:max-width .18s ease,opacity .15s}
+#fbFab:hover,#fbFab:focus-visible{background:#4338ca;transform:translateY(-1px);box-shadow:0 6px 18px rgba(79,70,229,.45),0 1px 3px rgba(0,0,0,.15);gap:7px;padding:0 16px 0 12px}
+#fbFab:hover .fbl,#fbFab:focus-visible .fbl{max-width:140px;opacity:1}
 #fbFab:focus-visible{outline:2px solid #4f46e5;outline-offset:3px}
 #fbFab svg{width:20px;height:20px;flex:none}
 body.fb-typing #fbFab,body.focus #fbFab,body.fb-open #fbFab{display:none}

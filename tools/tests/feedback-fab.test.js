@@ -28,15 +28,22 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     await p.waitForTimeout(300);
     const tag = `${page} @${vp.width}px`;
     const m = await p.$eval('#fbFab', el => { const s = getComputedStyle(el), r = el.getBoundingClientRect(), svg = el.querySelector('svg');
-      return { w: r.width, h: r.height, op: +s.opacity, bg: s.backgroundColor, fg: getComputedStyle(svg).color, label: (el.innerText || '').trim(),
+      return { w: r.width, h: r.height, op: +s.opacity, bg: s.backgroundColor, fg: getComputedStyle(svg).color, label: (el.innerText || '').trim(), lw: (el.querySelector('.fbl') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width,
         right: innerWidth - r.right, bottom: innerHeight - r.bottom, aria: el.getAttribute('aria-label') }; });
     const desktop = vp.width >= 820;
     ok(m.op === 1, `${tag}: button fully opaque (opacity ${m.op})`);
     ok(Math.min(m.w, m.h) >= 44, `${tag}: at least 44 px tall/wide (${m.w}×${m.h})`);
     ok(lum(m.bg) < 0.3, `${tag}: filled accent background, stands out from white pages (${m.bg})`);
     ok(contrast(m.fg, m.bg) >= 4.5, `${tag}: icon contrast ≥ 4.5:1 (${contrast(m.fg, m.bg).toFixed(2)})`);
-    ok(desktop ? m.label.length > 0 : m.label === '', `${tag}: ${desktop ? 'visible text label "' + m.label + '"' : 'icon only on phones'}`);
-    if (!desktop) ok(m.w <= 60, `${tag}: compact on phones (${m.w}px wide)`);
+    ok(m.lw < 1 && m.w <= 60, `${tag}: icon only at rest (${m.w}px wide, label ${Math.round(m.lw)}px)`);
+    if (desktop) { // BR-20261110-170022-be3d: on hover the icon opens into the labelled pill, then closes again
+      await p.hover('#fbFab'); await p.waitForTimeout(350);
+      const h = await p.$eval('#fbFab', el => ({ w: el.getBoundingClientRect().width, label: el.querySelector('.fbl').getBoundingClientRect().width > 60 ? el.querySelector('.fbl').textContent : '', right: innerWidth - el.getBoundingClientRect().right }));
+      ok(/Algo falla/.test(h.label) && h.w > 100, `${tag}: hover opens the pill "${h.label}" (${Math.round(h.w)}px wide)`);
+      ok(Math.abs(h.right - m.right) < 1, `${tag}: pill grows to the left, right edge stays put`);
+      await p.mouse.move(5, 5); await p.waitForTimeout(350);
+      ok(await p.$eval('#fbFab', el => el.getBoundingClientRect().width <= 60), `${tag}: back to the icon when the pointer leaves`);
+    }
     ok(!!m.aria, `${tag}: aria-label "${m.aria}"`);
     ok(m.right >= 8 && m.bottom >= 8, `${tag}: inside the viewport (right ${m.right}, bottom ${m.bottom})`);
     await p.click('#fbFab'); ok(await p.isVisible('#fbPanel'), `${tag}: click opens the panel`);
