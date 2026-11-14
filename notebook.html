@@ -20,6 +20,8 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.11.4 (2026-11-14): a note whose first line was saved as loose text (seen on iPhone) no longer shows its
+  formatting as raw tags ("<ul><li>…"); such notes open formatted again and new saves always keep the first line in a paragraph.
   Notebook v0.11.3 (2026-11-11): desktop: the report button is just the speech-bubble icon in the note's right margin and
   opens into "¿Algo falla?" on hover, so it no longer covers note text (shared feedback.js v1.2).
   Notebook v0.11.2 (2026-11-09): phones: images stay where you put them in the text (they were moved to the end of the
@@ -661,7 +663,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.11.3 · 2026.11.11</div>
+    <div class="ver" id="ver">Notebook v0.11.4 · 2026.11.14</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -2047,7 +2049,7 @@ self.onmessage=async function(e){var m=e.data;
 (function(){
 'use strict';
 const T0=performance.now();
-const APP_VERSION='0.11.3';  // bump on every release; the self-update check compares this
+const APP_VERSION='0.11.4';  // bump on every release; the self-update check compares this
 
 // ── CONFIG: same Supabase project + login as Covey Tasks ──
 const SB_URL='https://erosmwvmalyogiptuywm.supabase.co';
