@@ -2285,7 +2285,8 @@ const folderPath=id=>{const f=folders.find(x=>x.id===id);if(!f)return inboxName(
 const notesIn=id=>notes.filter(n=>(n.folder_id||INBOX)===id);
 const allTags=()=>[...new Set(notes.flatMap(n=>n.tags||[]))].sort((a,b)=>a.localeCompare(b,'es'));
 // ── NOTE BODY: sanitized HTML (old notes may still be Markdown until edited) ──
-const isHTML=b=>/^\s*</.test(b||'');
+// v0.11.4 (BR-dff9): a body whose first line was saved as loose text ("Line:<ul>…") is still HTML, not Markdown
+const isHTML=b=>/^\s*</.test(b||'')||/<\/(p|ul|ol|li|h[1-3]|div|blockquote|pre|table)>|<(br|hr)\s*\/?>/i.test(b||'');
 function rgbKey(c){c=(c||'').trim().toLowerCase();let m=c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
   if(m){let h=m[1];if(h.length===3)h=h.split('').map(x=>x+x).join('');return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)).join(',');}
   m=c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);return m?[m[1],m[2],m[3]].join(','):'';}
@@ -3266,8 +3267,21 @@ ED().addEventListener('contextmenu',e=>{if(!SPELL_OWN||!spellOn)return;const b=s
 function getTitle(){return $('ttl').value.trim();}
 function setTitle(t){$('ttl').value=t||'';}
 function loadDoc(d){setTitle(d.title);setBody(d.body);}
-function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';plainFirstLine();trimListStarts(ED());unwrapListsFromParas();ED().querySelectorAll(':scope>p:empty').forEach(p=>{if(p.nextElementSibling&&/^(UL|OL)$/.test(p.nextElementSibling.tagName)||p.previousElementSibling&&/^(UL|OL)$/.test(p.previousElementSibling.tagName))p.remove();});orderFloats();liftInlineImages();decorate();updateEmpty();hydrateImages();}
-function getBody(){const h=sanitize(ED().innerHTML);return textOf(h).trim()||/<(li|table|hr|div|img)/i.test(h)?h:'';}
+function setBody(b){const h=toHTML(b);ED().innerHTML=h||'<p><br></p>';wrapLoose(ED());plainFirstLine();trimListStarts(ED());unwrapListsFromParas();ED().querySelectorAll(':scope>p:empty').forEach(p=>{if(p.nextElementSibling&&/^(UL|OL)$/.test(p.nextElementSibling.tagName)||p.previousElementSibling&&/^(UL|OL)$/.test(p.previousElementSibling.tagName))p.remove();});orderFloats();liftInlineImages();decorate();updateEmpty();hydrateImages();}
+// v0.11.4 (BR-dff9): loose text or inline tags straight in the canvas (iOS Safari can leave the first line that way)
+// go into their own paragraph, so a saved body always starts with a tag
+function wrapLoose(root){
+  const inline=n=>n.nodeType===3||n.nodeType===1&&!n.hasAttribute('data-ui')&&/^(SPAN|B|I|U|S|STRONG|EM|A|BR|CODE|MARK|SUB|SUP|FONT)$/.test(n.tagName);
+  let p=null,changed=false;
+  [...root.childNodes].forEach(n=>{
+    if(!inline(n)){p=null;return;}
+    if(!p&&n.nodeType===3&&!n.nodeValue.trim())return; // whitespace between blocks stays as it is
+    if(!p){p=document.createElement('p');n.before(p);changed=true;}
+    p.append(n);
+  });
+  return changed;
+}
+function getBody(){const t=document.createElement('template');t.innerHTML=sanitize(ED().innerHTML);wrapLoose(t.content);const h=t.innerHTML;return textOf(h).trim()||/<(li|table|hr|div|img)/i.test(h)?h:'';}
 function focusEditor(){const e=ED();e.focus();const r=document.createRange();r.selectNodeContents(e);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);}
 let savedRange=null;
 function inEditor(n){return n&&ED().contains(n.nodeType===1?n:n.parentNode);}
