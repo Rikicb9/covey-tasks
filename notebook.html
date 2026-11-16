@@ -20,6 +20,8 @@ fix();addEventListener('resize',fix);addEventListener('orientationchange',functi
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"/>
 <!--
   CHANGELOG
+  Notebook v0.11.5 (2026-11-16): corrector: a word missing its accent (or with the wrong one, or n for ñ) now gets the
+  accented word first in the right-click suggestions ("musica" → "música"); before, it could be missing from the list.
   Notebook v0.11.4 (2026-11-14): a note whose first line was saved as loose text (seen on iPhone) no longer shows its
   formatting as raw tags ("<ul><li>…"); such notes open formatted again and new saves always keep the first line in a paragraph.
   Notebook v0.11.3 (2026-11-11): desktop: the report button is just the speech-bubble icon in the note's right margin and
@@ -663,7 +665,7 @@ body.resizing{cursor:col-resize;user-select:none}
     <div id="inboxbox"></div>
     <div id="tree"></div>
     <div class="sfoot">
-    <div class="ver" id="ver">Notebook v0.11.4 · 2026.11.14</div>
+    <div class="ver" id="ver">Notebook v0.11.5 · 2026.11.16</div>
     <button class="fab" id="fab" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nueva nota</button>
     </div>
   </aside>
@@ -2015,13 +2017,26 @@ var URLS={es:'https://cdn.jsdelivr.net/npm/dictionary-es@4.0.0/index.',en:'https
 async function get(u){var c=null;try{c=await caches.open('nb-dict-v1');var hit=await c.match(u);if(hit)return hit.text();}catch(e){}
   var r=await fetch(u);if(!r.ok)throw new Error('dict '+r.status);var t=await r.text();try{c&&await c.put(u,new Response(t));}catch(e){}return t;}
 function ensure(l){if(D[l])return Promise.resolve(D[l]);if(!LOADING[l])LOADING[l]=Promise.all([get(URLS[l]+'aff'),get(URLS[l]+'dic')]).then(function(x){var d=nspell(x[0],x[1]);PERSONAL.forEach(function(w){d.add(w);});D[l]=d;return d;});return LOADING[l];}
+/* v0.11.5 (BR-20261111-100715-01f3): nspell ignores the dictionary's MAP table (a=á, u=ú=ü…), so "musica" ranked
+   "música" 6th and it fell off the menu. Try the same word with accents, diaeresis and ñ added, removed or swapped
+   (up to 2 letters) and list the ones the dictionary accepts first. */
+var ACC={a:'á',e:'é',i:'í',o:'ó',u:'úü',n:'ñ','á':'a','é':'e','í':'i','ó':'o','ú':'uü','ü':'uú','ñ':'n'};
+function accentFix(d,word){var lw=word.toLowerCase(),found=[],seen={};
+  var up=word.length>1&&word===word.toUpperCase(),cap=!up&&word.charAt(0)!==lw.charAt(0);
+  function cased(w){return up?w.toUpperCase():cap?w.charAt(0).toUpperCase()+w.slice(1):w;}
+  function vars(w,from){var r=[];for(var i=from;i<w.length;i++){var alt=ACC[w.charAt(i)];if(!alt)continue;
+    for(var k=0;k<alt.length;k++)r.push([w.slice(0,i)+alt.charAt(k)+w.slice(i+1),i+1]);}return r;}
+  function tryW(w){if(w===lw||seen[w])return;seen[w]=1;var c=cased(w);if(d.correct(c))found.push(c);}
+  var one=vars(lw,0);one.forEach(function(v){tryW(v[0]);});
+  if(!found.length)one.forEach(function(v){vars(v[0],v[1]).forEach(function(v2){tryW(v2[0]);});});
+  return found;}
 self.onmessage=async function(e){var m=e.data;
   try{
     if(m.type==='personal'){PERSONAL=PERSONAL.concat(m.words);Object.keys(D).forEach(function(l){m.words.forEach(function(w){D[l].add(w);});});return;}
     if(m.type==='check'){await Promise.all(m.langs.map(ensure));var bad=[];
       m.items.forEach(function(it){var ok=it[0].split('+').some(function(l){return D[l].correct(it[1]);});if(!ok)bad.push(it[0]+'|'+it[1]);});
       self.postMessage({type:'checked',id:m.id,items:m.items.map(function(it){return it[0]+'|'+it[1];}),bad:bad});return;}
-    if(m.type==='suggest'){var out=[];for(var i=0;i<m.langs.length;i++){var d=await ensure(m.langs[i]);d.suggest(m.word).forEach(function(w){if(out.indexOf(w)<0)out.push(w);});}
+    if(m.type==='suggest'){var out=[];for(var i=0;i<m.langs.length;i++){var d=await ensure(m.langs[i]);accentFix(d,m.word).concat(d.suggest(m.word)).forEach(function(w){if(out.indexOf(w)<0)out.push(w);});}
       self.postMessage({type:'sugg',id:m.id,list:out.slice(0,6)});return;}
   }catch(err){self.postMessage({type:'error',id:m.id,msg:String(err&&err.message||err)});}
 };</script>
