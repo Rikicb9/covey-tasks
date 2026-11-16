@@ -5,7 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"/>
 <meta name="theme-color" content="#1E293B"/>
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-tasks-192.png"/>
 <link rel="apple-touch-icon" href="./icon-tasks-180.png"/>
@@ -969,6 +969,20 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
   white-space:nowrap;
 }
 #user-badge:hover{color:#fff;}
+/* V3.9.3 (BR-20261115-114949-9509): on phones the report icon sits in the bottom-right corner (was 88 px up, over the
+   "Sin clasificar" tasks and their ✕), and every task list keeps an empty strip at its end so its last task can always
+   be scrolled clear of the icon. */
+@media (max-width:819px){
+  html body #fbFab{bottom:calc(12px + env(safe-area-inset-bottom,0px));right:12px;}
+  #mx-unclassified-list{padding-bottom:calc(68px + env(safe-area-inset-bottom,0px)) !important;}
+  #tasks-container{padding-bottom:max(80px, calc(68px + env(safe-area-inset-bottom,0px)));}
+}
+/* V3.9.3: with the phone keyboard open the page is short; the matrix gives up its 200 px minimum so "Sin clasificar"
+   (and the task just added) stays above the keyboard instead of being cut off below it. */
+@media (max-width:819px) and (max-height:560px){
+  .mx-outer{min-height:0 !important;}
+  #mx-unclassified-section{min-height:120px !important;}
+}
 </style>
 </head>
 <body>
@@ -1055,7 +1069,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
           <div id="mx-unclassified-list"></div>
         </div>
       </div>
-      <div id="version-badge">V3.9.2 · 2026.11.11</div>
+      <div id="version-badge">V3.9.3 · 2026.11.16</div>
     </div>
   </div>
 </div>
@@ -1151,6 +1165,7 @@ a.tab-btn{text-decoration:none;display:flex;align-items:center;}
 </div>
 
 <script>
+// CHANGELOG V3.9.3 (2026-11-16): phones: report icon moved to the bottom-right corner (was over the "Sin clasificar" tasks and their ✕), lists end with room to scroll the last task clear of it; with the keyboard open the matrix shrinks so "Sin clasificar" and the task just added stay visible and scrollable (Android: page resizes above the keyboard).
 // CHANGELOG V3.9.2 (2026-11-11): report button on desktop is just the speech-bubble icon, opens into "¿Algo falla?" on hover (shared feedback.js v1.2).
 // CHANGELOG V3.9.1 (2026-11-09): report-a-problem button easier to see (indigo "¿Algo falla?" pill on desktop, 48 px indigo circle on phones; shared feedback.js).
 // CHANGELOG V3.9.0 (2026-11-08): 🐞 button on every screen to report a problem (shared feedback.js, same as Notas).
@@ -2324,6 +2339,9 @@ function initDropZones(){
     save();render();rMatrix();
     // keep focus so user can add more
     inp.focus();
+    // V3.9.3: show the task just added (it goes to the end of "Sin clasificar"), also with the phone keyboard open
+    const list=document.getElementById('mx-unclassified-list');
+    requestAnimationFrame(()=>{list.scrollTop=list.scrollHeight;});
   }
 
   inp.addEventListener('input',e=>{pending=e.target.value;showBtn(!!e.target.value.trim());});
